@@ -9,26 +9,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { downloadCSV, TurnMetrics } from "@/utils/metrics";
 
 const baselineData: TurnMetrics[] = [
-  { turn: 1, vadLatency: 662.5, sttLatency: 7596.88, llmTTFT: 563.69, llmTotal: 4909.68, ttsTTFA: 9489.5, totalLatency: 22769.8, transcript: "Hey, can you tell me about some of the best tourist places to visit in the world?", response: "Iconic spots like Paris, Tokyo, Rome, and the beaches of Bali are always incredible places to visit." },
-  { turn: 2, vadLatency: 664.4, sttLatency: 7743.72, llmTTFT: 1218.05, llmTotal: 7336.35, ttsTTFA: 14624.46, totalLatency: 30475.3, transcript: "Okay, so if I'm planning to go to let's say Japan or Tokyo, what are some of the best places to visit in Japan?", response: "In Tokyo, explore Shibuya and Senso-ji Temple. Outside the city, Kyoto’s historic shrines, Mount Fuji, and Osaka are must-sees." },
-  { turn: 3, vadLatency: 661.9, sttLatency: 7942.51, llmTTFT: 1186.93, llmTotal: 5459.78, ttsTTFA: 13821.67, totalLatency: 28013.8, transcript: "Okay, and what are some of the best food spots or the different food or dishes to try in Japan?", response: "You have to try authentic ramen, fresh sushi at Tsukiji Outer Market, and street food like takoyaki in Osaka." },
-  { turn: 4, vadLatency: 662.9, sttLatency: 8473.93, llmTTFT: 1247.23, llmTotal: 5175.84, ttsTTFA: 12148.42, totalLatency: 26577.7, transcript: "Okay, and if I were to plan like a five-day trip, what places should I visit?", response: "Spend three days exploring Tokyo's top neighborhoods, then take the bullet train for two days in historic Kyoto." },
-  { turn: 5, vadLatency: 661.9, sttLatency: 7643.76, llmTTFT: 1350.72, llmTotal: 5614.12, ttsTTFA: 12006.93, totalLatency: 26039.9, transcript: "Okay, so you mentioned that. Okay, what kind of train should I take or is there any sort of a pass that I should create?", response: "Take the Shinkansen bullet train between cities, and load a digital IC card like Suica onto your phone for local subways." },
-  { turn: 6, vadLatency: 661.3, sttLatency: 7923.68, llmTTFT: 1301.71, llmTotal: 5730.05, ttsTTFA: 12927.96, totalLatency: 27378.6, transcript: "Got it and are there any other better modes of transport or is that it?", response: "Trains and subways are definitely the best and fastest. Taxis and buses work well too, but trains cover almost everywhere easily." },
-  { turn: 7, vadLatency: 661.6, sttLatency: 8468.3, llmTTFT: 1274.83, llmTotal: 5038.56, ttsTTFA: 13840.98, totalLatency: 28116.4, transcript: "Got it and again what were the some eating spots that you mentioned initially?", response: "I recommended Tokyo's Tsukiji Outer Market for fresh sushi, local ramen shops, and Osaka's vibrant street food scene for takoyaki." },
-  { turn: 8, vadLatency: 662.2, sttLatency: 7731.34, llmTTFT: 1430.88, llmTotal: 6066.06, ttsTTFA: 9226.22, totalLatency: 23839.8, transcript: "Okay, and in Tokyo, what are some of the famous shops or things I should purchase maybe related to fashion or any other knick-knacks?", response: "Check out Harajuku and Ginza for trendy fashion, Don Quijote for fun knick-knacks, and Akihabara for anime collectibles." },
-  { turn: 9, vadLatency: 665.6, sttLatency: 8687.43, llmTTFT: 1480.7, llmTotal: 8994.07, ttsTTFA: 12680.93, totalLatency: 31164.4, transcript: "Okay, and any specific brands or shops that you might recommend?", response: "Visit the multi-story Uniqlo in Ginza, Beams for Japanese streetwear, and Loft for incredible stationery and gifts." },
-  { turn: 10, vadLatency: 665.9, sttLatency: 7683.46, llmTTFT: 1383.27, llmTotal: 5204.14, ttsTTFA: 11302.08, totalLatency: 24965.9, transcript: "Where is Loft exactly?", response: "The flagship stores are located right in Shibuya, just a few minutes from the station, and in the Ginza shopping district." },
-  { turn: 11, vadLatency: 664.8, sttLatency: 8505.54, llmTTFT: 1280.01, llmTotal: 5819.22, ttsTTFA: 11442.17, totalLatency: 26553.9, transcript: "And what kind of a brand is Beams? I'm not aware of it.", response: "Beams is a famous Japanese retailer known for trendy, high-quality streetwear, classic casual fashion, and curated lifestyle goods." },
-  { turn: 12, vadLatency: 662.3, sttLatency: 8446.45, llmTTFT: 1419.35, llmTotal: 6623.73, ttsTTFA: 11014.83, totalLatency: 26864.1, transcript: "Okay, and what does the average product at Beams cost? If you can tell me that in rupees.", response: "Basic items usually start around 4,000 to 6,000 rupees, while jackets and signature pieces range from 15,000 to 30,000 rupees." },
-  { turn: 13, vadLatency: 660.6, sttLatency: 8126.78, llmTTFT: 1530.31, llmTotal: 5337.82, ttsTTFA: 12044.28, totalLatency: 26285.1, transcript: "What are the basic items exactly?", response: "Basic items include their graphic T-shirts, branded caps, canvas tote bags, socks, and small lifestyle accessories." },
-  { turn: 14, vadLatency: 659.8, sttLatency: 8520.14, llmTTFT: 1545.52, llmTotal: 5778.9, ttsTTFA: 10207.45, totalLatency: 25302.9, transcript: "Okay, and then based on your suggestions, what would a five-day trip, a five-day solo trip to Japan cost me like in rupees?", response: "A 5-day solo trip typically costs between 1.2 to 1.8 lakh rupees, covering flights, accommodation, food, and local travel." },
-  { turn: 15, vadLatency: 665.2, sttLatency: 7962.78, llmTTFT: 1509.09, llmTotal: 9263.72, ttsTTFA: 12739.29, totalLatency: 30750.7, transcript: "And what would a two week two week trip cost?", response: "A two-week solo trip generally costs between 2.2 to 3.2 lakh rupees, depending on your hotel choices and shopping." },
-  { turn: 16, vadLatency: 663.8, sttLatency: 9568.41, llmTTFT: 1547.76, llmTotal: 5986.87, ttsTTFA: 11423.83, totalLatency: 27767.9, transcript: "And how can I make it so that my two week trip is costing around 1.", response: "Stay in hostels or capsule hotels, eat at convenience stores and casual noodle shops, and book flight deals early." },
-  { turn: 17, vadLatency: 662.5, sttLatency: 8196.91, llmTTFT: 1574.43, llmTotal: 6675.95, ttsTTFA: 12605.51, totalLatency: 28258.9, transcript: "Okay, and what would be the visa requirements?", response: "You will need a valid passport, recent bank statements showing sufficient funds, a daily itinerary, and confirmed flight and hotel bookings." },
-  { turn: 18, vadLatency: 660.8, sttLatency: 8504.71, llmTTFT: 1547.62, llmTotal: 5732.61, ttsTTFA: 13814.95, totalLatency: 28869.3, transcript: "And what are the charges for getting a visa from India?", response: "The visa fee itself is around 500 rupees, plus VFS handling charges of about 700 to 1,000 rupees." },
-  { turn: 19, vadLatency: 662.4, sttLatency: 7781.57, llmTTFT: 1558.69, llmTotal: 7208.85, ttsTTFA: 12938.48, totalLatency: 28716.8, transcript: "Got it and normally what are the flight charges like?", response: "Round-trip flights from India usually cost between 40,000 and 65,000 rupees, depending on the season and how early you book." },
-  { turn: 20, vadLatency: 660.7, sttLatency: 7403.86, llmTTFT: 1543.89, llmTotal: 5670.74, ttsTTFA: 8423.9, totalLatency: 22277.7, transcript: "Got it and what's the duration of the journey like from India to Japan?", response: "Direct flights take about 7 to 8 hours, while flights with a layover usually take between 10 and 14 hours." }
+  { turn: 1, vadLatency: 663, sttLatency: 3007, llmTTFT: 192, llmTotal: 2453, ttsTTFA: 5798, totalLatency: 13947, transcript: "Hi, can you tell me about the capital of India?", response: "New Delhi is the capital of India. It's a vibrant city known for its rich history and historic landmarks." },
+  { turn: 2, vadLatency: 664, sttLatency: 2985, llmTTFT: 378, llmTotal: 1951, ttsTTFA: 9949, totalLatency: 17453, transcript: "And can you tell me what are the some things to do in New Delhi?", response: "You can explore historic sites like the Red Fort, visit India Gate, and enjoy incredible street food in Chandni Chowk." },
+  { turn: 3, vadLatency: 665, sttLatency: 3201, llmTTFT: 258, llmTotal: 1609, ttsTTFA: 7418, totalLatency: 14687, transcript: "Got it and what other offerings or things that you can buy in New Delhi?", response: "You can shop for beautiful textiles, pashmina shawls, fragrant spices, and handmade jewelry in bustling markets like Dilli Haat." },
+  { turn: 4, vadLatency: 662, sttLatency: 4001, llmTTFT: 345, llmTotal: 1745, ttsTTFA: 8314, totalLatency: 16596, transcript: "All right, and what other places are there to visit in India?", response: "You can visit the iconic Taj Mahal in Agra, explore Jaipur's royal palaces, or relax in Kerala's serene backwaters." },
+  { turn: 5, vadLatency: 663, sttLatency: 4053, llmTTFT: 506, llmTotal: 3323, ttsTTFA: 7569, totalLatency: 17088, transcript: "And what about Bombay?", response: "Mumbai is a lively coastal city famous for the Gateway of India, Marine Drive sunsets, and the Bollywood film industry." },
+  { turn: 6, vadLatency: 752, sttLatency: 3639, llmTTFT: 389, llmTotal: 2476, ttsTTFA: 7738, totalLatency: 16069, transcript: "Got it and what are the best travel options over there?", response: "The local train network is iconic and fast, but app-based cabs and auto-rickshaws are the most comfortable options." },
+  { turn: 7, vadLatency: 662, sttLatency: 3104, llmTTFT: 427, llmTotal: 2251, ttsTTFA: 9583, totalLatency: 17345, transcript: "Got it and how much does food cost normally for one person let's say?", response: "Street food costs around two to three dollars, while a nice meal at a sit-down restaurant typically runs ten to twenty dollars." },
+  { turn: 8, vadLatency: 663, sttLatency: 3120, llmTTFT: 448, llmTotal: 2830, ttsTTFA: 6642, totalLatency: 15639, transcript: "Alright and what are some souvenirs that I can buy from there?", response: "Great souvenirs include Kolhapuri leather sandals, vintage Bollywood posters, local tea, and unique antique finds from Chor Bazaar." },
+  { turn: 9, vadLatency: 667, sttLatency: 3430, llmTTFT: 432, llmTotal: 1898, ttsTTFA: 6764, totalLatency: 14210, transcript: "Okay, and are there any other special things that I should look out for?", response: "Always drink bottled water, carry some cash for local markets, and dress modestly when visiting religious sites." },
+  { turn: 10, vadLatency: 667, sttLatency: 3161, llmTTFT: 452, llmTotal: 2629, ttsTTFA: 8102, totalLatency: 16621, transcript: "Okay, I'm also planning to go to another country for a trip. What other countries would you suggest?", response: "Japan offers incredible culture and food, while Thailand or Vietnam are great nearby options for stunning scenery and rich history." },
+  { turn: 11, vadLatency: 663, sttLatency: 2608, llmTTFT: 482, llmTotal: 1894, ttsTTFA: 7725, totalLatency: 14471, transcript: "Okay, can you help me prepare like a five-day trip for Japan? What would be the places that I would visit?", response: "Spend three days exploring Tokyo's vibrant neighborhoods and temples, then take the bullet train to Kyoto for two days of historic shrines." },
+  { turn: 12, vadLatency: 666, sttLatency: 2803, llmTTFT: 679, llmTotal: 2407, ttsTTFA: 7959, totalLatency: 15224, transcript: "Quran what would what would it cost for one person for like a five day trip?", response: "Excluding international flights, expect to spend between eight hundred and fifteen hundred dollars for mid-range hotels, food, and bullet train travel." },
+  { turn: 13, vadLatency: 659, sttLatency: 3110, llmTTFT: 580, llmTotal: 2188, ttsTTFA: 7831, totalLatency: 15353, transcript: "Can you give me the price in rupees?", response: "That would be roughly seventy thousand to one lakh thirty thousand rupees per person, excluding international flights." },
+  { turn: 14, vadLatency: 667, sttLatency: 2831, llmTTFT: 542, llmTotal: 2303, ttsTTFA: 7096, totalLatency: 14352, transcript: "I mean, can you also include slides as well?", response: "With round-trip flights included, the total cost usually ranges from 1.1 to 1.9 lakh rupees per person." },
+  { turn: 15, vadLatency: 662, sttLatency: 2472, llmTTFT: 557, llmTotal: 2421, ttsTTFA: 6358, totalLatency: 13485, transcript: "Okay, and what would a two-week trip cost?", response: "For a two-week trip including flights, expect to spend around 2 to 3.2 lakh rupees per person for a mid-range experience." },
+  { turn: 16, vadLatency: 664, sttLatency: 3152, llmTTFT: 704, llmTotal: 1942, ttsTTFA: 6252, totalLatency: 13567, transcript: "Got it. And what are some great foods to eat in Japan?", response: "Be sure to try authentic ramen, fresh sushi, crispy tempura, and savory street snacks like takoyaki." },
+  { turn: 17, vadLatency: 663, sttLatency: 3111, llmTTFT: 659, llmTotal: 3220, ttsTTFA: 9542, totalLatency: 18163, transcript: "And I'm a vegetarian, so like are there any good food options for me there?", response: "Yes, you can enjoy Shojin Ryori Buddhist cuisine, vegetable tempura, tofu dishes, and dedicated vegetarian ramen spots across major cities." },
+  { turn: 18, vadLatency: 664, sttLatency: 3492, llmTTFT: 786, llmTotal: 2228, ttsTTFA: 8944, totalLatency: 17095, transcript: "Got it. And what are the best times to visit Japan? Like, is October a good time? I'm planning to go in October.", response: "Yes, October is one of the best times to visit! You'll enjoy mild weather, comfortable temperatures, and beautiful autumn foliage." },
+  { turn: 19, vadLatency: 662, sttLatency: 2920, llmTTFT: 793, llmTotal: 2672, ttsTTFA: 6360, totalLatency: 14196, transcript: "Can I also see the sakura trees in October?", response: "No, cherry blossoms bloom in spring from late March to April. Instead, October offers stunning colorful autumn leaves across the country." },
+  { turn: 20, vadLatency: 665, sttLatency: 2903, llmTTFT: 803, llmTotal: 2221, ttsTTFA: 5946, totalLatency: 12930, transcript: "Got it. Thanks a lot.", response: "You're very welcome! Have an amazing trip to Japan, and let me know if you need anything else." }
 ];
 
 const optimizedData: TurnMetrics[] = [
@@ -63,11 +63,11 @@ export default function Home() {
   const faqs = [
     {
       question: "What was the single largest bottleneck in the system?",
-      answer: "In the baseline pipeline, Text-to-Speech synthesis was the largest bottleneck (averaging 11.9s, 44.2% of total turn time), closely followed by STT upload and transcription (8.1s, 30.1%). Because execution was purely sequential, the user was forced to wait for complete audio file generation before hearing any response."
+      answer: "In the baseline pipeline, Text-to-Speech synthesis was the largest bottleneck (averaging 7.5s, 49.1% of total turn time), followed by STT upload and transcription (3.2s, 20.9%). Because execution was purely sequential, the user was forced to wait for complete audio file generation before hearing any response."
     },
     {
       question: "Why optimize STT and TTS streaming instead of LLM prompt engineering?",
-      answer: "Streaming STT and TTS provides a multiplicative reduction in perceived latency. Micro-optimizing LLM prompts or token limits in a sequential architecture only saves ~1-2s out of a 27s wait. Pipelining STT (transcribing concurrently while user speaks) and TTS (streaming raw PCM audio on the first tokens) completely eliminates blocking idle states."
+      answer: "Streaming STT and TTS provides a multiplicative reduction in perceived latency. Micro-optimizing LLM prompts or token limits in a sequential architecture only saves ~0.5-1s out of a 15s wait. Pipelining STT (transcribing concurrently while user speaks) and TTS (streaming raw PCM audio on the first tokens) completely eliminates blocking idle states."
     },
     {
       question: "How would the pipeline behave under degraded network conditions?",
@@ -75,7 +75,7 @@ export default function Home() {
     },
     {
       question: "What engineering trade-offs were made between Gemini and Deepgram/Groq?",
-      answer: "The Gemini stack delivered slightly higher phonetic nuance and deep reasoning, but at a fatal latency cost (~27s) unusable in real-time conversation. Switching to Deepgram Nova-3 + Groq LPUs introduced a calculated trade-off: trading marginal reasoning depth for a >95% latency reduction (~1.18s), creating a natural human conversation flow."
+      answer: "The Gemini stack delivered slightly higher phonetic nuance and deep reasoning, but at a fatal latency cost (~15.3s) unusable in real-time conversation. Switching to Deepgram Nova-3 + Groq LPUs introduced a calculated trade-off: trading marginal reasoning depth for a >92% latency reduction (~1.18s), creating a natural human conversation flow."
     }
   ];
 
@@ -101,7 +101,7 @@ export default function Home() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-center space-y-1">
             <div className="text-xs font-mono uppercase tracking-wider text-zinc-500">Baseline (P50)</div>
-            <div className="text-2xl sm:text-3xl font-black text-zinc-900">27.1s</div>
+            <div className="text-2xl sm:text-3xl font-black text-zinc-900">15.3s</div>
             <div className="text-[11px] text-zinc-500">Sequential Gemini</div>
           </div>
           <div className="p-4 rounded-lg bg-black text-white border border-black text-center space-y-1">
@@ -111,8 +111,8 @@ export default function Home() {
           </div>
           <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-center space-y-1">
             <div className="text-xs font-mono uppercase tracking-wider text-zinc-500">Net Reduction</div>
-            <div className="text-2xl sm:text-3xl font-black text-zinc-900">-95.6%</div>
-            <div className="text-[11px] text-zinc-500">23x Speedup</div>
+            <div className="text-2xl sm:text-3xl font-black text-zinc-900">-92.3%</div>
+            <div className="text-[11px] text-zinc-500">13x Speedup</div>
           </div>
           <div className="p-4 rounded-lg bg-zinc-50 border border-zinc-200 text-center space-y-1">
             <div className="text-xs font-mono uppercase tracking-wider text-zinc-500">Groq TTFT</div>
@@ -131,7 +131,7 @@ export default function Home() {
                 <Badge variant="outline" className="border-zinc-300 text-zinc-700 font-mono text-xs">
                   Sequential Execution
                 </Badge>
-                <span className="text-xs font-mono text-zinc-600 font-semibold">P50: ~27.1s</span>
+                <span className="text-xs font-mono text-zinc-600 font-semibold">P50: ~15.3s</span>
               </div>
               <CardTitle className="text-xl font-bold text-black">Baseline Voice Agent</CardTitle>
               <CardDescription className="text-zinc-600 text-sm leading-relaxed">
@@ -142,19 +142,19 @@ export default function Home() {
               <div className="space-y-2 text-xs font-mono bg-zinc-50 p-3.5 rounded-lg border border-zinc-200">
                 <div className="flex justify-between text-zinc-800">
                   <span className="text-zinc-500">VAD (Silence Window):</span>
-                  <span>650 ms</span>
+                  <span>660 ms</span>
                 </div>
                 <div className="flex justify-between text-zinc-800">
                   <span className="text-zinc-500">STT Model:</span>
-                  <span>gemini-3.5-transcribe (~8.0s)</span>
+                  <span>gemini-3.5-transcribe (~3.2s)</span>
                 </div>
                 <div className="flex justify-between text-zinc-800">
                   <span className="text-zinc-500">LLM Model:</span>
-                  <span>gemini-3.7-flash (~5.7s)</span>
+                  <span>gemini-3.7-flash (~2.3s)</span>
                 </div>
                 <div className="flex justify-between text-zinc-800">
                   <span className="text-zinc-500">TTS Model:</span>
-                  <span>gemini-3.1-flash-tts (~12.0s)</span>
+                  <span>gemini-3.1-flash-tts (~7.5s)</span>
                 </div>
               </div>
               <Link href="/baseline" className="block w-full">
@@ -172,7 +172,7 @@ export default function Home() {
                 <Badge className="bg-black text-white font-mono text-xs">
                   Streaming Pipeline
                 </Badge>
-                <span className="text-xs font-mono text-black font-bold">P50: ~1.18s (23x Faster)</span>
+                <span className="text-xs font-mono text-black font-bold">P50: ~1.18s (13x Faster)</span>
               </div>
               <CardTitle className="text-xl font-bold text-black">Optimized Voice Agent</CardTitle>
               <CardDescription className="text-zinc-600 text-sm leading-relaxed">
@@ -222,28 +222,28 @@ export default function Home() {
             <div className="p-5 rounded-lg bg-white border border-zinc-200 space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-zinc-200">
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-800">Baseline (Sequential)</span>
-                <span className="text-xs font-mono text-zinc-500">Total: ~27.0s</span>
+                <span className="text-xs font-mono text-zinc-500">Total: ~15.3s</span>
               </div>
               <div className="space-y-1.5 text-xs">
                 <div className="flex items-center justify-between p-2 rounded bg-zinc-50 border border-zinc-200">
                   <span className="text-zinc-700">1. Silence VAD Wait</span>
-                  <span className="font-mono text-zinc-500">663 ms</span>
+                  <span className="font-mono text-zinc-500">669 ms (4.4%)</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-zinc-50 border border-zinc-200">
                   <span className="text-zinc-700">2. File Upload & Gemini STT</span>
-                  <span className="font-mono font-semibold text-zinc-900">8,145 ms (30.1%)</span>
+                  <span className="font-mono font-semibold text-zinc-900">3,195 ms (20.9%)</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-zinc-50 border border-zinc-200">
                   <span className="text-zinc-700">3. Gemini 3.7 Flash LLM Gen</span>
-                  <span className="font-mono font-semibold text-zinc-900">6,184 ms (22.9%)</span>
+                  <span className="font-mono font-semibold text-zinc-900">2,333 ms (15.3%)</span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-zinc-50 border border-zinc-200">
                   <span className="text-zinc-700">4. Gemini Full-Text TTS Synthesis</span>
-                  <span className="font-mono font-semibold text-zinc-900">11,944 ms (44.2%)</span>
+                  <span className="font-mono font-semibold text-zinc-900">7,495 ms (49.1%)</span>
                 </div>
               </div>
               <div className="p-2.5 rounded bg-zinc-100 border border-zinc-200 text-[11px] text-zinc-700">
-                <strong>Blocking Bottleneck:</strong> The browser sits idle for ~27 seconds until the entire audio synthesis completes.
+                <strong>Blocking Bottleneck:</strong> The browser sits idle for ~15 seconds until the entire audio synthesis completes.
               </div>
             </div>
 
@@ -322,25 +322,25 @@ export default function Home() {
             <div className="p-3.5 rounded-lg bg-zinc-50 border border-zinc-200">
               <div className="text-[11px] font-mono text-zinc-500 uppercase">Median Total (P50)</div>
               <div className="text-xl font-bold text-black font-mono">
-                {activeTab === "optimized" ? "1,178 ms" : "26,864 ms"}
+                {activeTab === "optimized" ? "1,178 ms" : "15,289 ms"}
               </div>
             </div>
             <div className="p-3.5 rounded-lg bg-zinc-50 border border-zinc-200">
               <div className="text-[11px] font-mono text-zinc-500 uppercase">P95 Total Latency</div>
               <div className="text-xl font-bold text-black font-mono">
-                {activeTab === "optimized" ? "1,649 ms" : "30,771 ms"}
+                {activeTab === "optimized" ? "1,649 ms" : "17,489 ms"}
               </div>
             </div>
             <div className="p-3.5 rounded-lg bg-zinc-50 border border-zinc-200">
               <div className="text-[11px] font-mono text-zinc-500 uppercase">Mean Total Latency</div>
               <div className="text-xl font-bold text-black font-mono">
-                {activeTab === "optimized" ? "1,215 ms" : "27,050 ms"}
+                {activeTab === "optimized" ? "1,215 ms" : "15,275 ms"}
               </div>
             </div>
             <div className="p-3.5 rounded-lg bg-zinc-50 border border-zinc-200">
               <div className="text-[11px] font-mono text-zinc-500 uppercase">Mean LLM TTFT</div>
               <div className="text-xl font-bold text-black font-mono">
-                {activeTab === "optimized" ? "346 ms" : "1,389 ms"}
+                {activeTab === "optimized" ? "346 ms" : "521 ms"}
               </div>
             </div>
           </div>

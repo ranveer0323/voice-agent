@@ -13,10 +13,10 @@ This project instruments, benchmarks, and optimizes an end-to-end conversational
 2. **Optimized Agent (Deepgram + Groq Stack)**: Fully streamed, overlapped pipeline leveraging **Deepgram Nova-3 WebSocket STT**, **Groq LPU (`openai/gpt-oss-20b`)**, and **Deepgram Flux TTS (`/v2/speak`)** with 24kHz Linear16 PCM browser audio streaming.
 
 ### Key Results Summary (20-Turn Benchmark)
-- **Baseline Median Response Latency**: `27,121 ms` (~27.1 seconds)
+- **Baseline Median Response Latency**: `15,289 ms` (~15.3 seconds)
 - **Optimized Median Response Latency**: `1,178 ms` (~1.18 seconds)
-- **Net Latency Reduction**: **-95.6% (~23x speedup)**
-- **P95 Latency**: Reduced from `30,771 ms` $\rightarrow$ `1,649 ms`
+- **Net Latency Reduction**: **-92.3% (~13x speedup)**
+- **P95 Latency**: Reduced from `17,489 ms` $\rightarrow$ `1,649 ms`
 
 ---
 
@@ -24,11 +24,11 @@ This project instruments, benchmarks, and optimizes an end-to-end conversational
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════
-BASELINE: SEQUENTIAL EXECUTION PIPELINE (Avg: ~27s)
+BASELINE: SEQUENTIAL EXECUTION PIPELINE (Avg: ~15.3s)
 ═══════════════════════════════════════════════════════════════════════════════
-[ User Speaks ] ──► [ RMS VAD (650ms) ] ──► [ Upload WebM to Gemini ]
+[ User Speaks ] ──► [ RMS VAD (660ms) ] ──► [ Upload WebM to Gemini ]
                                                        │
-[ Full WAV Synthesis (12s) ] ◄── [ LLM Response (6s) ] ◄── [ Transcribe (8s) ]
+[ Full WAV Synthesis (7.5s) ] ◄── [ LLM Response (2.3s) ] ◄── [ Transcribe (3.2s) ]
            │
      [ Play Audio ]
 
@@ -65,31 +65,31 @@ OPTIMIZED: OVERLAPPED STREAMING PIPELINE (Avg: ~1.18s)
 ### 1. Baseline Agent Measurements (Google Gemini Stack)
 *All values measured in milliseconds (ms).*
 
-| Turn | VAD (ms) | STT Latency (ms) | LLM TTFT (ms) | LLM Total (ms) | TTS Latency (ms) | Total Latency (ms) |
+| Turn | VAD (ms) | STT (ms) | LLM TTFT (ms) | LLM Total (ms) | TTS Latency (ms) | Total Latency (ms) |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 662.5 | 7,596.9 | 563.7 | 4,909.7 | 9,489.5 | 22,769.8 |
-| 2 | 664.4 | 7,743.7 | 1,218.1 | 7,336.4 | 14,624.5 | 30,475.3 |
-| 3 | 661.9 | 7,942.5 | 1,186.9 | 5,459.8 | 13,821.7 | 28,013.8 |
-| 4 | 662.9 | 8,473.9 | 1,247.2 | 5,175.8 | 12,148.4 | 26,577.7 |
-| 5 | 661.9 | 7,643.8 | 1,350.7 | 5,614.1 | 12,006.9 | 26,039.9 |
-| 6 | 661.3 | 7,923.7 | 1,301.7 | 5,730.1 | 12,928.0 | 27,378.6 |
-| 7 | 661.6 | 8,468.3 | 1,274.8 | 5,038.6 | 13,841.0 | 28,116.4 |
-| 8 | 662.2 | 7,731.3 | 1,430.9 | 6,066.1 | 9,226.2 | 23,839.8 |
-| 9 | 665.6 | 8,687.4 | 1,480.7 | 8,994.1 | 12,680.9 | 31,164.4 |
-| 10 | 665.9 | 7,683.5 | 1,383.3 | 5,204.1 | 11,302.1 | 24,965.9 |
-| 11 | 664.8 | 8,505.5 | 1,280.0 | 5,819.2 | 11,442.2 | 26,553.9 |
-| 12 | 662.3 | 8,446.5 | 1,419.4 | 6,623.7 | 11,014.8 | 26,864.1 |
-| 13 | 660.6 | 8,126.8 | 1,530.3 | 5,337.8 | 12,044.3 | 26,285.1 |
-| 14 | 659.8 | 8,520.1 | 1,545.5 | 5,778.9 | 10,207.5 | 25,302.9 |
-| 15 | 665.2 | 7,962.8 | 1,509.1 | 9,263.7 | 12,739.3 | 30,750.7 |
-| 16 | 663.8 | 9,568.4 | 1,547.8 | 5,986.9 | 11,423.8 | 27,767.9 |
-| 17 | 662.5 | 8,196.9 | 1,574.4 | 6,676.0 | 12,605.5 | 28,258.9 |
-| 18 | 660.8 | 8,504.7 | 1,547.6 | 5,732.6 | 13,815.0 | 28,869.3 |
-| 19 | 662.4 | 7,781.6 | 1,558.7 | 7,208.9 | 12,938.5 | 28,716.8 |
-| 20 | 660.7 | 7,403.9 | 1,543.9 | 5,670.7 | 8,423.9 | 22,277.7 |
-| **P50 (Median)** | **662.5** | **7,962.8** | **1,425.1** | **5,754.5** | **12,025.6** | **26,864.1** |
-| **P95** | **665.6** | **8,731.5** | **1,573.1** | **9,007.6** | **14,584.3** | **30,771.4** |
-| **Mean** | **662.9** | **8,145.2** | **1,388.9** | **6,184.0** | **11,943.9** | **27,049.5** |
+| 1 | 663 | 3,007 | 192 | 2,453 | 5,798 | 13,947 |
+| 2 | 664 | 2,985 | 378 | 1,951 | 9,949 | 17,453 |
+| 3 | 665 | 3,201 | 258 | 1,609 | 7,418 | 14,687 |
+| 4 | 662 | 4,001 | 345 | 1,745 | 8,314 | 16,596 |
+| 5 | 663 | 4,053 | 506 | 3,323 | 7,569 | 17,088 |
+| 6 | 752 | 3,639 | 389 | 2,476 | 7,738 | 16,069 |
+| 7 | 662 | 3,104 | 427 | 2,251 | 9,583 | 17,345 |
+| 8 | 663 | 3,120 | 448 | 2,830 | 6,642 | 15,639 |
+| 9 | 667 | 3,430 | 432 | 1,898 | 6,764 | 14,210 |
+| 10 | 667 | 3,161 | 452 | 2,629 | 8,102 | 16,621 |
+| 11 | 663 | 2,608 | 482 | 1,894 | 7,725 | 14,471 |
+| 12 | 666 | 2,803 | 679 | 2,407 | 7,959 | 15,224 |
+| 13 | 659 | 3,110 | 580 | 2,188 | 7,831 | 15,353 |
+| 14 | 667 | 2,831 | 542 | 2,303 | 7,096 | 14,352 |
+| 15 | 662 | 2,472 | 557 | 2,421 | 6,358 | 13,485 |
+| 16 | 664 | 3,152 | 704 | 1,942 | 6,252 | 13,567 |
+| 17 | 663 | 3,111 | 659 | 3,220 | 9,542 | 18,163 |
+| 18 | 664 | 3,492 | 786 | 2,228 | 8,944 | 17,095 |
+| 19 | 662 | 2,920 | 793 | 2,672 | 6,360 | 14,196 |
+| 20 | 665 | 2,903 | 803 | 2,221 | 5,946 | 12,930 |
+| **P50 (Median)** | **663.5** | **3,110.5** | **494.0** | **2,277.0** | **7,647.0** | **15,288.5** |
+| **P95** | **667.0** | **4,003.6** | **793.5** | **3,225.2** | **9,601.3** | **17,488.5** |
+| **Mean** | **668.6** | **3,195.2** | **520.6** | **2,333.1** | **7,494.5** | **15,274.6** |
 
 ---
 
@@ -127,17 +127,17 @@ OPTIMIZED: OVERLAPPED STREAMING PIPELINE (Avg: ~1.18s)
 ### 3. Stage-by-Stage Comparison
 
 ```
-Baseline Latency Breakdown (Mean ~27.0s):
-├── VAD Silence Wait:  663ms  (2.5%)
-├── STT Upload & Gen: 8145ms (30.1%)
-├── LLM Generation:   6184ms (22.9%)
-└── TTS Synthesis:   11944ms (44.2%) ◄── Largest Bottleneck
+Baseline Latency Breakdown (Mean ~15.3s):
+├── VAD Silence Wait:   669ms  (4.4%)
+├── STT Upload & Gen:  3195ms (20.9%)
+├── LLM Generation:    2333ms (15.3%)
+└── TTS Synthesis:     7495ms (49.1%) ◄── Largest Bottleneck
 
 Optimized Latency Breakdown (Mean ~1.2s):
-├── VAD Endpointing:   150ms (12.3%)
-├── STT (Concurrent):    0ms  (0.0%) ◄── Overlapped in Flight
-├── LLM TTFT (Groq):   346ms (28.5%)
-└── TTS TTFA (Flux):   719ms (59.2%) ◄── Audio starts playing immediately
+├── VAD Endpointing:    150ms (12.3%)
+├── STT (Concurrent):     0ms  (0.0%) ◄── Overlapped in Flight
+├── LLM TTFT (Groq):    346ms (28.5%)
+└── TTS TTFA (Flux):    719ms (59.2%) ◄── Audio starts playing immediately
 ```
 
 ---
@@ -145,10 +145,10 @@ Optimized Latency Breakdown (Mean ~1.2s):
 ## 💬 Discussion & Technical Evaluation
 
 ### 1. What was the largest bottleneck?
-In the Baseline stack, the largest bottleneck was **Text-to-Speech synthesis (averaging 11.9s, 44.2% of total turn time)** followed closely by **STT upload and transcription (8.1s, 30.1%)**. Because the baseline executed sequentially, each stage had to fully complete before the next could begin. The entire audio file had to be recorded, uploaded over HTTP, transcribed, fully responded to by Gemini 3.7 Flash, and then fully rendered into a multi-megabyte WAV file by Gemini TTS before the first millisecond of audio could be played.
+In the Baseline stack, the largest bottleneck was **Text-to-Speech synthesis (averaging 7.5s, 49.1% of total turn time)** followed by **STT upload and transcription (3.2s, 20.9%)**. Because the baseline executed sequentially, each stage had to fully complete before the next could begin. The entire audio file had to be recorded, uploaded over HTTP, transcribed, fully responded to by Gemini 3.7 Flash, and then fully rendered into a WAV file by Gemini TTS before the first millisecond of audio could be played.
 
 ### 2. Why optimize this part of the system instead of another?
-Optimizing STT to streaming WebSockets and TTS to chunked PCM streaming offered a **multiplicative reduction in perceived latency**. Micro-optimizing LLM prompts or token generation limits in a sequential architecture would only save ~1–2 seconds while STT and TTS still took ~20 seconds. Pipelining STT (transcribing concurrently while the user talks) and TTS (streaming raw audio buffers on the first token stream) eliminated the idle wait states completely.
+Optimizing STT to streaming WebSockets and TTS to chunked PCM streaming offered a **multiplicative reduction in perceived latency**. Micro-optimizing LLM prompts or token generation limits in a sequential architecture would only save ~0.5–1.0s while STT and TTS still took ~11s. Pipelining STT (transcribing concurrently while the user talks) and TTS (streaming raw audio buffers on the first token stream) eliminated the idle wait states completely.
 
 ### 3. What would happen under worse network conditions?
 - **Baseline Failure Mode**: Severe degradation. Large HTTP payloads (uploading 5–10s audio files and downloading full WAV responses) suffer heavily under high packet loss or low bandwidth. A 500ms network jitter multiplies across 3 distinct HTTP POST requests.
