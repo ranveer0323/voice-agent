@@ -60,6 +60,8 @@ export default function OptimizedAgent() {
   const mediaStream = useRef<MediaStream | null>(null);
   const keepAliveInterval = useRef<NodeJS.Timeout | null>(null);
   const isListeningActive = useRef(false);
+  const transcriptRef = useRef<string>("");
+  const accumulatedTranscript = useRef<string>("");
   const t_user_silence_start = useRef<number>(0);
   const currentTurnProcessed = useRef(false);
   const continuousModeRef = useRef(true);
@@ -167,6 +169,8 @@ export default function OptimizedAgent() {
     try {
       setStatus("listening");
       setTranscript("");
+      transcriptRef.current = "";
+      accumulatedTranscript.current = "";
       setAgentResponse("");
       setVadStateText("Connecting to Deepgram STT & Flux TTS...");
       currentTurnProcessed.current = false;
@@ -342,36 +346,51 @@ export default function OptimizedAgent() {
           const alt = msg.channel?.alternatives?.[0];
           const text = alt?.transcript?.trim();
 
-          if (text && isListeningActive.current) {
-            setTranscript(text);
-            setStageSTT((prev) => ({ ...prev, detail: text }));
-          }
-
-          // Barge-in detection: if user speaks while audio is playing
-          if (text && activeSources.current.length > 0) {
-            interruptPlayback();
-            addLog("BARGE-IN", `User interrupted: "${text}"`, "warn");
-          }
-
-          if (isListeningActive.current && (msg.speech_final || (msg.is_final && text && msg.speech_final !== false))) {
-            if (text && !currentTurnProcessed.current) {
-              currentTurnProcessed.current = true;
-              isListeningActive.current = false;
-              startKeepAlive();
-              t_user_silence_start.current = performance.now() - 150;
-              const vadLatency = Math.max(0, performance.now() - t_user_silence_start.current);
-              addLog("VAD", `Speech endpoint detected: "${text}"`, "success");
-              processTurn(text, vadLatency);
+          if (isListeningActive.current) {
+            if (msg.is_final && text) {
+              accumulatedTranscript.current = accumulatedTranscript.current
+                ? `${accumulatedTranscript.current} ${text}`
+                : text;
+              transcriptRef.current = accumulatedTranscript.current;
+              setTranscript(accumulatedTranscript.current);
+              setStageSTT((prev) => ({ ...prev, detail: accumulatedTranscript.current }));
+            } else if (text && !msg.is_final) {
+              const liveText = accumulatedTranscript.current
+                ? `${accumulatedTranscript.current} ${text}`
+                : text;
+              transcriptRef.current = liveText;
+              setTranscript(liveText);
+              setStageSTT((prev) => ({ ...prev, detail: liveText }));
             }
-          } else if (isListeningActive.current && msg.type === "UtteranceEnd") {
-            if (transcript && !currentTurnProcessed.current) {
-              currentTurnProcessed.current = true;
-              isListeningActive.current = false;
-              startKeepAlive();
-              t_user_silence_start.current = performance.now() - 250;
-              const vadLatency = Math.max(0, performance.now() - t_user_silence_start.current);
-              addLog("VAD", `Utterance end detected (VAD: ${vadLatency.toFixed(0)}ms)`, "success");
-              processTurn(transcript, vadLatency);
+
+            // Barge-in detection: if user speaks while audio is playing
+            if (text && activeSources.current.length > 0) {
+              interruptPlayback();
+              addLog("BARGE-IN", `User interrupted: "${text}"`, "warn");
+            }
+
+            const currentTurnText = (accumulatedTranscript.current || transcriptRef.current || text || "").trim();
+
+            if (msg.speech_final || (msg.is_final && msg.speech_final === true)) {
+              if (currentTurnText && !currentTurnProcessed.current) {
+                currentTurnProcessed.current = true;
+                isListeningActive.current = false;
+                startKeepAlive();
+                t_user_silence_start.current = performance.now() - 150;
+                const vadLatency = Math.max(0, performance.now() - t_user_silence_start.current);
+                addLog("VAD", `Speech endpoint detected: "${currentTurnText}"`, "success");
+                processTurn(currentTurnText, vadLatency);
+              }
+            } else if (msg.type === "UtteranceEnd") {
+              if (currentTurnText && !currentTurnProcessed.current) {
+                currentTurnProcessed.current = true;
+                isListeningActive.current = false;
+                startKeepAlive();
+                t_user_silence_start.current = performance.now() - 250;
+                const vadLatency = Math.max(0, performance.now() - t_user_silence_start.current);
+                addLog("VAD", `Utterance end detected (VAD: ${vadLatency.toFixed(0)}ms)`, "success");
+                processTurn(currentTurnText, vadLatency);
+              }
             }
           }
         } catch (parseErr) {
@@ -403,6 +422,8 @@ export default function OptimizedAgent() {
     isTurnFlushed.current = false;
     isSpeechMetadataReceived.current = false;
     t_first_audio_played.current = 0;
+    transcriptRef.current = "";
+    accumulatedTranscript.current = "";
     setStatus("listening");
     setVadStateText("Listening... (Speak anytime)");
     addLog("MIC", "Mic active, ready for next turn (KeepAlive stopped)", "info");
@@ -541,6 +562,8 @@ export default function OptimizedAgent() {
     isListeningActive.current = false;
     stopKeepAlive();
     interruptPlayback();
+    transcriptRef.current = "";
+    accumulatedTranscript.current = "";
 
     if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
       mediaRecorder.current.stop();
