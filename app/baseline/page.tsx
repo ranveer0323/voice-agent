@@ -532,22 +532,22 @@ export default function BaselineAgent() {
   const getStageBadge = (stage: StageState, defaultLabel: string) => {
     switch (stage.status) {
       case "idle":
-        return <Badge variant="secondary" className="text-slate-400 font-normal">Waiting</Badge>;
+        return <Badge variant="outline" className="border-zinc-200 text-zinc-400 font-mono text-[10px]">Waiting</Badge>;
       case "pending":
-        return <Badge variant="outline" className="text-slate-400">Pending</Badge>;
+        return <Badge variant="outline" className="border-zinc-200 text-zinc-400 font-mono text-[10px]">Pending</Badge>;
       case "running":
-        return <Badge className="bg-blue-600 text-white animate-pulse">Running...</Badge>;
+        return <Badge className="bg-black text-white font-mono text-[10px] animate-pulse">Running...</Badge>;
       case "completed":
         return (
-          <Badge className="bg-emerald-600 text-white flex gap-1 items-center">
+          <Badge className="bg-zinc-100 text-zinc-900 border border-zinc-300 font-mono text-[10px] flex gap-1 items-center">
             <span>✓</span>
             <span>{stage.latency !== undefined ? `${stage.latency.toFixed(0)}ms` : "Done"}</span>
           </Badge>
         );
       case "error":
-        return <Badge variant="destructive">Failed</Badge>;
+        return <Badge variant="destructive" className="font-mono text-[10px]">Failed</Badge>;
       default:
-        return <Badge variant="secondary">{defaultLabel}</Badge>;
+        return <Badge variant="secondary" className="font-mono text-[10px]">{defaultLabel}</Badge>;
     }
   };
 
@@ -558,37 +558,40 @@ export default function BaselineAgent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900 font-sans">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen bg-white text-black font-sans selection:bg-black selection:text-white">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-8">
         
         {/* Header & Controls */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-zinc-200">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-1.5">
               <Link href="/">
-                <Button variant="outline" size="sm">← Back</Button>
+                <Button variant="outline" size="sm" className="h-8 text-xs border-zinc-300 hover:bg-zinc-100 text-zinc-900 cursor-pointer">
+                  ← Back to Benchmark
+                </Button>
               </Link>
-              <h1 className="text-3xl font-bold tracking-tight">Baseline Voice Agent</h1>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-black">Baseline Voice Agent</h1>
             </div>
-            <p className="text-slate-500">Sequential STT → LLM → TTS pipeline with multi-turn memory & live TTFT</p>
+            <p className="text-zinc-600 text-xs sm:text-sm">Sequential STT → LLM → TTS pipeline with Google Gemini models</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {chatHistory.length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={clearHistory}
-                className="text-xs h-8 text-slate-600 hover:text-slate-900 cursor-pointer bg-white"
+                className="text-xs h-8 border-zinc-300 text-zinc-700 hover:bg-zinc-100 cursor-pointer bg-white"
               >
                 Clear History ({Math.round(chatHistory.length / 2)} turns)
               </Button>
             )}
             <Badge
-              variant={status === "idle" ? "secondary" : "default"}
-              className={`px-4 py-1.5 text-sm uppercase tracking-widest ${
-                status === "listening" ? "bg-amber-500 text-white animate-pulse" :
-                status === "processing" ? "bg-blue-600 text-white" :
-                status === "playing" ? "bg-emerald-600 text-white" : ""
+              variant="outline"
+              className={`px-3 py-1 font-mono text-xs uppercase tracking-wider ${
+                status === "listening" ? "bg-black text-white border-black animate-pulse" :
+                status === "processing" ? "bg-zinc-800 text-white border-zinc-800" :
+                status === "playing" ? "bg-zinc-100 text-black border-zinc-400 font-bold" :
+                "bg-zinc-50 text-zinc-600 border-zinc-300"
               }`}
             >
               {status}
@@ -597,60 +600,60 @@ export default function BaselineAgent() {
         </div>
 
         {/* Live Pipeline Lifecycle Tracker Card */}
-        <Card className="border-blue-100 bg-white shadow-xs">
-          <CardHeader className="pb-3">
-            <div className="flex justify-between items-center">
+        <Card className="border border-zinc-200 bg-white shadow-none">
+          <CardHeader className="pb-3 border-b border-zinc-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Live Pipeline Stage Tracker</CardTitle>
-                <CardDescription>Visual execution breakdown of the sequential voice pipeline</CardDescription>
+                <CardTitle className="text-base font-bold text-black">Pipeline Stage Tracker</CardTitle>
+                <CardDescription className="text-zinc-500 text-xs">Visual execution breakdown of the sequential voice pipeline</CardDescription>
               </div>
-              <div className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded">
-                Status: <span className="font-semibold text-slate-700">{vadStateText}</span>
+              <div className="text-xs text-zinc-600 font-mono bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded">
+                Status: <span className="font-semibold text-black">{vadStateText}</span>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <CardContent className="space-y-5 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
               
               {/* Stage 1: VAD */}
-              <div className={`p-3 rounded-lg border transition-all ${stageVAD.status === 'running' ? 'border-amber-400 bg-amber-50/50' : stageVAD.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+              <div className={`p-3 rounded-lg border transition-all ${stageVAD.status === 'running' ? 'border-black bg-zinc-50' : stageVAD.status === 'completed' ? 'border-zinc-300 bg-zinc-50/70' : 'border-zinc-200 bg-white'}`}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-slate-700">1. 🎤 VAD</span>
+                  <span className="text-xs font-bold text-black">1. VAD</span>
                   {getStageBadge(stageVAD, "VAD")}
                 </div>
-                <p className="text-[10px] font-mono text-slate-500">Web Audio RMS</p>
+                <p className="text-[10px] font-mono text-zinc-500">Browser RMS</p>
                 {stageVAD.latency !== undefined && (
-                  <p className="text-xs font-mono font-medium text-emerald-700 mt-1">{stageVAD.latency.toFixed(0)}ms</p>
+                  <p className="text-xs font-mono font-bold text-black mt-1">{stageVAD.latency.toFixed(0)}ms</p>
                 )}
               </div>
 
               {/* Stage 2: STT */}
-              <div className={`p-3 rounded-lg border transition-all ${stageSTT.status === 'running' ? 'border-blue-400 bg-blue-50/50' : stageSTT.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+              <div className={`p-3 rounded-lg border transition-all ${stageSTT.status === 'running' ? 'border-black bg-zinc-50' : stageSTT.status === 'completed' ? 'border-zinc-300 bg-zinc-50/70' : 'border-zinc-200 bg-white'}`}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-slate-700">2. 📝 STT</span>
+                  <span className="text-xs font-bold text-black">2. STT</span>
                   {getStageBadge(stageSTT, "STT")}
                 </div>
-                <p className="text-[10px] font-mono text-blue-600 font-medium">gemini-3.5-transcribe</p>
+                <p className="text-[10px] font-mono text-zinc-600 truncate" title="gemini-3.5-transcribe">gemini-3.5-transcribe</p>
                 {stageSTT.latency !== undefined && (
-                  <p className="text-xs font-mono font-medium text-emerald-700 mt-1">{stageSTT.latency.toFixed(0)}ms</p>
+                  <p className="text-xs font-mono font-bold text-black mt-1">{stageSTT.latency.toFixed(0)}ms</p>
                 )}
               </div>
 
               {/* Stage 3: LLM & TTFT */}
-              <div className={`p-3 rounded-lg border transition-all ${stageLLM.status === 'running' ? 'border-blue-400 bg-blue-50/50' : stageLLM.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+              <div className={`p-3 rounded-lg border transition-all ${stageLLM.status === 'running' ? 'border-black bg-zinc-50' : stageLLM.status === 'completed' ? 'border-zinc-300 bg-zinc-50/70' : 'border-zinc-200 bg-white'}`}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-slate-700">3. 🧠 LLM</span>
+                  <span className="text-xs font-bold text-black">3. LLM</span>
                   {getStageBadge(stageLLM, "LLM")}
                 </div>
-                <p className="text-[10px] font-mono text-purple-600 font-medium">gemini-3.7-flash</p>
+                <p className="text-[10px] font-mono text-zinc-600 truncate" title="gemini-3.7-flash">gemini-3.7-flash</p>
                 <div className="flex flex-col gap-0.5 mt-1">
                   {stageLLM.ttft !== undefined && (
-                    <span className="text-[11px] font-mono text-purple-700 font-semibold">
+                    <span className="text-[10px] font-mono text-zinc-600 font-semibold">
                       TTFT: {stageLLM.ttft.toFixed(0)}ms
                     </span>
                   )}
                   {stageLLM.latency !== undefined && (
-                    <span className="text-xs font-mono font-medium text-emerald-700">
+                    <span className="text-xs font-mono font-bold text-black">
                       Total: {stageLLM.latency.toFixed(0)}ms
                     </span>
                   )}
@@ -658,64 +661,62 @@ export default function BaselineAgent() {
               </div>
 
               {/* Stage 4: TTS */}
-              <div className={`p-3 rounded-lg border transition-all ${stageTTS.status === 'running' ? 'border-blue-400 bg-blue-50/50' : stageTTS.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+              <div className={`p-3 rounded-lg border transition-all ${stageTTS.status === 'running' ? 'border-black bg-zinc-50' : stageTTS.status === 'completed' ? 'border-zinc-300 bg-zinc-50/70' : 'border-zinc-200 bg-white'}`}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-slate-700">4. 🔊 TTS</span>
+                  <span className="text-xs font-bold text-black">4. TTS</span>
                   {getStageBadge(stageTTS, "TTS")}
                 </div>
-                <p className="text-[10px] font-mono text-amber-600 font-medium truncate" title="gemini-3.1-flash-tts-preview (Puck)">
-                  gemini-3.1-flash-tts-preview
+                <p className="text-[10px] font-mono text-zinc-600 truncate" title="gemini-3.1-flash-tts-preview">
+                  gemini-3.1-flash-tts
                 </p>
                 {stageTTS.latency !== undefined && (
-                  <p className="text-xs font-mono font-medium text-emerald-700 mt-1">{stageTTS.latency.toFixed(0)}ms</p>
+                  <p className="text-xs font-mono font-bold text-black mt-1">{stageTTS.latency.toFixed(0)}ms</p>
                 )}
               </div>
 
               {/* Stage 5: Playback */}
-              <div className={`p-3 rounded-lg border transition-all ${stagePlayback.status === 'running' ? 'border-emerald-400 bg-emerald-50/50' : stagePlayback.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+              <div className={`p-3 rounded-lg border transition-all ${stagePlayback.status === 'running' ? 'border-black bg-zinc-50' : stagePlayback.status === 'completed' ? 'border-zinc-300 bg-zinc-50/70' : 'border-zinc-200 bg-white'}`}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-semibold text-slate-700">5. 🎧 Output</span>
+                  <span className="text-xs font-bold text-black">5. Audio</span>
                   {getStageBadge(stagePlayback, "Audio")}
                 </div>
-                <p className="text-[10px] font-mono text-slate-500">Browser Playback</p>
+                <p className="text-[10px] font-mono text-zinc-500">Browser Playback</p>
                 {stagePlayback.latency !== undefined && (
-                  <p className="text-xs font-mono font-bold text-emerald-800 mt-1">Total: {stagePlayback.latency.toFixed(0)}ms</p>
+                  <p className="text-xs font-mono font-black text-black mt-1">Total: {stagePlayback.latency.toFixed(0)}ms</p>
                 )}
               </div>
 
             </div>
 
             {/* Conversation Output Box */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-              <div className="p-3 bg-slate-50 rounded-md border text-xs">
-                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] block mb-1">User Transcript (STT)</span>
-                <p className="text-slate-800 font-medium whitespace-pre-wrap">{stageSTT.detail || transcript || "Waiting for user speech..."}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div className="p-3 bg-zinc-50 rounded-lg border border-zinc-200 text-xs">
+                <span className="font-semibold text-zinc-500 uppercase tracking-wider text-[10px] block mb-1">User Transcript (STT)</span>
+                <p className="text-zinc-900 font-medium whitespace-pre-wrap">{stageSTT.detail || transcript || "Waiting for user speech..."}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-md border text-xs">
-                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] block mb-1">Agent Response (LLM)</span>
-                <p className="text-slate-800 font-medium whitespace-pre-wrap">{agentResponse || "Waiting for LLM generation..."}</p>
+              <div className="p-3 bg-zinc-50 rounded-lg border border-zinc-200 text-xs">
+                <span className="font-semibold text-zinc-500 uppercase tracking-wider text-[10px] block mb-1">Agent Response (LLM)</span>
+                <p className="text-zinc-900 font-medium whitespace-pre-wrap">{agentResponse || "Waiting for LLM generation..."}</p>
               </div>
             </div>
 
             {/* Live Audio Level Meter & Controls */}
             {status === "listening" && (
-              <div className="space-y-3 p-3 bg-slate-50 rounded-lg border">
+              <div className="space-y-3 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
                 <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs text-slate-600 font-medium">
-                    <span>Mic Volume (RMS): <span className="font-semibold">{volumeLevel}</span></span>
-                    <span className={isSpeakingState ? "text-emerald-600 font-bold" : "text-slate-500"}>
-                      {isSpeakingState ? "● Speaking Active" : "Waiting for speech..."}
+                  <div className="flex justify-between items-center text-xs text-zinc-700 font-medium">
+                    <span>Mic Volume (RMS): <span className="font-mono font-bold">{volumeLevel}</span></span>
+                    <span className={isSpeakingState ? "text-black font-bold" : "text-zinc-500"}>
+                      {isSpeakingState ? "● Speaking Detected" : "Listening..."}
                     </span>
                   </div>
-                  <div className="relative w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                  <div className="relative w-full bg-zinc-200 h-2.5 rounded-full overflow-hidden">
                     <div
-                      className={`h-full transition-all duration-75 ${
-                        volumeLevel >= speechThreshold ? "bg-emerald-500" : "bg-blue-400"
-                      }`}
+                      className="h-full bg-black transition-all duration-75"
                       style={{ width: `${Math.min(100, volumeLevel)}%` }}
                     />
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-red-500"
+                      className="absolute top-0 bottom-0 w-0.5 bg-zinc-600"
                       style={{ left: `${speechThreshold}%` }}
                       title={`Speech Threshold: ${speechThreshold}`}
                     />
@@ -724,13 +725,13 @@ export default function BaselineAgent() {
 
                 {silenceProgress > 0 && (
                   <div className="space-y-1">
-                    <div className="flex justify-between items-center text-[11px] text-amber-700 font-medium">
+                    <div className="flex justify-between items-center text-[11px] text-zinc-600 font-medium">
                       <span>Silence detection progress:</span>
-                      <span>{silenceProgress}%</span>
+                      <span className="font-mono">{silenceProgress}%</span>
                     </div>
-                    <div className="w-full bg-amber-100 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-zinc-200 h-1.5 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-amber-500 transition-all duration-75"
+                        className="h-full bg-zinc-700 transition-all duration-75"
                         style={{ width: `${silenceProgress}%` }}
                       />
                     </div>
@@ -740,12 +741,12 @@ export default function BaselineAgent() {
             )}
 
             {/* Action Buttons */}
-            <div className="flex justify-center gap-3 pt-2">
+            <div className="flex justify-center gap-3 pt-1">
               {status === "idle" && (
                 <Button
                   onClick={startInteraction}
                   size="lg"
-                  className="w-52 bg-blue-600 hover:bg-blue-700 text-white cursor-pointer font-medium"
+                  className="w-48 bg-black hover:bg-zinc-800 text-white cursor-pointer font-semibold h-11"
                 >
                   Start Speaking
                 </Button>
@@ -756,15 +757,15 @@ export default function BaselineAgent() {
                   <Button
                     onClick={manualSendNow}
                     size="lg"
-                    className="w-40 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    className="w-36 bg-black hover:bg-zinc-800 text-white cursor-pointer h-11"
                   >
                     Send Now
                   </Button>
                   <Button
                     onClick={endConversation}
-                    variant="destructive"
+                    variant="outline"
                     size="lg"
-                    className="w-40 cursor-pointer"
+                    className="w-36 border-zinc-300 text-zinc-900 hover:bg-zinc-100 cursor-pointer h-11"
                   >
                     Stop
                   </Button>
@@ -772,7 +773,7 @@ export default function BaselineAgent() {
               )}
 
               {status === "processing" && (
-                <Button disabled size="lg" className="w-52 bg-slate-400 text-white">
+                <Button disabled size="lg" className="w-48 bg-zinc-200 text-zinc-600 h-11 font-medium">
                   Agent Thinking...
                 </Button>
               )}
@@ -782,7 +783,7 @@ export default function BaselineAgent() {
                   onClick={endConversation}
                   variant="outline"
                   size="lg"
-                  className="w-52 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  className="w-48 border-zinc-400 text-black hover:bg-zinc-100 cursor-pointer h-11 font-medium"
                 >
                   Agent Speaking (Stop)
                 </Button>
@@ -792,106 +793,100 @@ export default function BaselineAgent() {
         </Card>
 
         {/* Metrics Dashboard */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="border border-zinc-200 bg-white shadow-none">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
             <div>
-              <CardTitle>Latency Measurements</CardTitle>
-              <CardDescription>Precise benchmarks including LLM Time-To-First-Token (TTFT)</CardDescription>
+              <CardTitle className="text-base font-bold text-black">Turn Latency Measurements</CardTitle>
+              <CardDescription className="text-zinc-500 text-xs">Empirical benchmarks including LLM Time-To-First-Token (TTFT)</CardDescription>
             </div>
-            <div className="flex gap-4 items-center">
-              <div className="text-xs bg-slate-100 p-2 rounded border space-y-0.5">
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="text-xs bg-zinc-50 p-2 rounded border border-zinc-200 space-y-0.5 font-mono">
                 <div>
-                  <span className="font-semibold text-slate-700">Total Latency:</span> p50: <span className="font-bold">{p50Total.toFixed(0)}ms</span> | p95: <span className="font-bold">{p95Total.toFixed(0)}ms</span>
+                  <span className="text-zinc-500">Total Latency:</span> p50: <span className="font-bold text-black">{p50Total.toFixed(0)}ms</span> | p95: <span className="font-bold text-black">{p95Total.toFixed(0)}ms</span>
                 </div>
                 <div>
-                  <span className="font-semibold text-purple-700">LLM TTFT:</span> p50: <span className="font-bold text-purple-800">{p50TTFT.toFixed(0)}ms</span> | p95: <span className="font-bold text-purple-800">{p95TTFT.toFixed(0)}ms</span>
+                  <span className="text-zinc-500">LLM TTFT:</span> p50: <span className="font-bold text-black">{p50TTFT.toFixed(0)}ms</span> | p95: <span className="font-bold text-black">{p95TTFT.toFixed(0)}ms</span>
                 </div>
               </div>
-              <Button variant="outline" onClick={() => downloadCSV(metrics, "baseline_metrics.csv")} disabled={metrics.length === 0}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadCSV(metrics, "baseline_metrics.csv")}
+                disabled={metrics.length === 0}
+                className="text-xs border-zinc-300 text-zinc-800 hover:bg-zinc-100 cursor-pointer"
+              >
                 Export CSV
               </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Turn</TableHead>
-                  <TableHead>VAD (ms)</TableHead>
-                  <TableHead>STT (ms)</TableHead>
-                  <TableHead className="text-purple-700 font-semibold">LLM TTFT (ms)</TableHead>
-                  <TableHead>LLM Total (ms)</TableHead>
-                  <TableHead>TTS (ms)</TableHead>
-                  <TableHead className="text-right font-bold">Total (ms)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {metrics.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-500 py-6">
-                      No data yet. Click &apos;Start Speaking&apos; to run turns!
-                    </TableCell>
+          <CardContent className="pt-3">
+            <div className="rounded border border-zinc-200 overflow-hidden">
+              <Table>
+                <TableHeader className="bg-zinc-50 border-b border-zinc-200">
+                  <TableRow className="border-zinc-200">
+                    <TableHead className="font-mono text-xs text-zinc-700">Turn</TableHead>
+                    <TableHead className="font-mono text-xs text-zinc-700 text-right">VAD (ms)</TableHead>
+                    <TableHead className="font-mono text-xs text-zinc-700 text-right">STT (ms)</TableHead>
+                    <TableHead className="font-mono text-xs text-zinc-700 text-right">LLM TTFT</TableHead>
+                    <TableHead className="font-mono text-xs text-zinc-700 text-right">LLM Total</TableHead>
+                    <TableHead className="font-mono text-xs text-zinc-700 text-right">TTS (ms)</TableHead>
+                    <TableHead className="font-mono text-xs text-black font-bold text-right">Total (ms)</TableHead>
                   </TableRow>
-                ) : (
-                  metrics.map((m) => (
-                    <TableRow key={m.turn}>
-                      <TableCell className="font-medium">{m.turn}</TableCell>
-                      <TableCell>{(m.vadLatency ?? 0).toFixed(0)}</TableCell>
-                      <TableCell>{(m.sttLatency ?? 0).toFixed(0)}</TableCell>
-                      <TableCell className="text-purple-700 font-semibold">{(m.llmTTFT ?? m.llmTtft ?? 0).toFixed(0)}</TableCell>
-                      <TableCell>{(m.llmTotal ?? m.llmLatency ?? 0).toFixed(0)}</TableCell>
-                      <TableCell>{(m.ttsTTFA ?? m.ttsLatency ?? 0).toFixed(0)}</TableCell>
-                      <TableCell className="text-right font-bold">{(m.totalLatency ?? 0).toFixed(0)}</TableCell>
+                </TableHeader>
+                <TableBody>
+                  {metrics.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-zinc-400 py-6 text-xs font-mono">
+                        No turns recorded yet. Click &apos;Start Speaking&apos; to run an interaction.
+                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    metrics.map((m) => (
+                      <TableRow key={m.turn} className="border-zinc-200 hover:bg-zinc-50 text-xs">
+                        <TableCell className="font-mono font-bold text-zinc-900">#{m.turn}</TableCell>
+                        <TableCell className="font-mono text-right text-zinc-600">{(m.vadLatency ?? 0).toFixed(0)}</TableCell>
+                        <TableCell className="font-mono text-right text-zinc-600">{(m.sttLatency ?? 0).toFixed(0)}</TableCell>
+                        <TableCell className="font-mono text-right font-medium text-black">{(m.llmTTFT ?? m.llmTtft ?? 0).toFixed(0)}</TableCell>
+                        <TableCell className="font-mono text-right text-zinc-600">{(m.llmTotal ?? m.llmLatency ?? 0).toFixed(0)}</TableCell>
+                        <TableCell className="font-mono text-right text-zinc-600">{(m.ttsTTFA ?? m.ttsLatency ?? 0).toFixed(0)}</TableCell>
+                        <TableCell className="font-mono text-right font-bold text-black">{(m.totalLatency ?? 0).toFixed(0)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 
         {/* Execution Log Terminal */}
-        <Card className="border-slate-800 bg-slate-950 text-slate-100">
-          <CardHeader className="py-3 px-4 border-b border-slate-800 flex flex-row items-center justify-between">
+        <Card className="border border-zinc-200 bg-zinc-950 text-zinc-100 shadow-none">
+          <CardHeader className="py-2.5 px-4 border-b border-zinc-800 flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-red-500 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
-              <span className="text-xs font-mono font-medium text-slate-300 ml-2">Pipeline Execution Logs</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-zinc-600 inline-block" />
+              <span className="text-xs font-mono font-medium text-zinc-400 ml-2">Pipeline Logs Console</span>
             </div>
             <button
               onClick={() => setShowLogs(!showLogs)}
-              className="text-xs text-slate-400 hover:text-slate-200 cursor-pointer font-mono"
+              className="text-xs text-zinc-400 hover:text-white cursor-pointer font-mono"
             >
-              {showLogs ? "Hide Console" : "Show Console"}
+              {showLogs ? "Hide" : "Show"}
             </button>
           </CardHeader>
           {showLogs && (
-            <CardContent className="p-3 font-mono text-[11px] max-h-48 overflow-y-auto space-y-1 bg-black/40">
+            <CardContent className="p-3 font-mono text-[11px] max-h-44 overflow-y-auto space-y-1 bg-black">
               {logs.length === 0 ? (
-                <div className="text-slate-500">Ready. Start an interaction to stream detailed logs...</div>
+                <div className="text-zinc-500">Ready. Start an interaction to stream pipeline logs...</div>
               ) : (
                 logs.map((l) => (
                   <div key={l.id} className="flex gap-2 items-start leading-relaxed">
-                    <span className="text-slate-500 select-none">[{l.time}]</span>
-                    <span
-                      className={`font-semibold px-1 py-0.2 rounded text-[10px] ${
-                        l.stage === "STT" ? "bg-blue-950 text-blue-300" :
-                        l.stage === "LLM" ? "bg-purple-950 text-purple-300" :
-                        l.stage === "TTS" ? "bg-amber-950 text-amber-300" :
-                        l.stage === "VAD" ? "bg-emerald-950 text-emerald-300" :
-                        "bg-slate-800 text-slate-300"
-                      }`}
-                    >
+                    <span className="text-zinc-500 select-none">[{l.time}]</span>
+                    <span className="font-semibold px-1 py-0.2 rounded text-[10px] bg-zinc-800 text-zinc-200">
                       {l.stage}
                     </span>
-                    <span
-                      className={`${
-                        l.type === "error" ? "text-red-400 font-semibold" :
-                        l.type === "success" ? "text-emerald-400" :
-                        l.type === "warn" ? "text-amber-300" : "text-slate-300"
-                      }`}
-                    >
+                    <span className={l.type === "error" ? "text-red-400 font-semibold" : l.type === "warn" ? "text-amber-300" : "text-zinc-300"}>
                       {l.message}
                     </span>
                   </div>
