@@ -66,17 +66,17 @@ export default function Home() {
                     <Badge className="bg-blue-600 text-white font-mono text-xs">Streaming</Badge>
                   </div>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Overlaps execution pipelines: Deepgram Live Streaming STT → Groq LPU LLM (openai/gpt-oss-20b) with sentence boundary detection → Chunked TTS streaming playback.
+                    Overlaps execution pipelines: Deepgram Live Nova-3 STT → Groq LPU LLM (openai/gpt-oss-20b) → Deepgram Flux TTS (/v2/speak) with Web Audio PCM streaming & barge-in.
                   </p>
                   <ul className="text-xs text-blue-900/80 space-y-1.5 pt-2 font-medium">
                     <li className="flex items-center gap-1.5">
-                      <span className="text-blue-500 font-bold">•</span> STT: Deepgram WebSocket (Real-time)
+                      <span className="text-blue-500 font-bold">•</span> STT: Deepgram Nova-3 (WebSocket)
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <span className="text-blue-500 font-bold">•</span> LLM: Groq openai/gpt-oss-20b (Fast TTFT)
+                      <span className="text-blue-500 font-bold">•</span> LLM: Groq openai/gpt-oss-20b (Ultra-fast TTFT)
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <span className="text-blue-500 font-bold">•</span> TTS: First-sentence Chunked Gemini TTS
+                      <span className="text-blue-500 font-bold">•</span> TTS: Deepgram Flux TTS (flux-haley-en /v2/speak)
                     </li>
                   </ul>
                 </div>

@@ -33,7 +33,6 @@ export default function OptimizedAgent() {
   const [transcript, setTranscript] = useState("");
   const [agentResponse, setAgentResponse] = useState("");
   const [vadStateText, setVadStateText] = useState("Idle");
-  const [continuousMode, setContinuousMode] = useState(true);
 
   // Multi-Turn Chat History
   const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
@@ -42,7 +41,7 @@ export default function OptimizedAgent() {
   useEffect(() => {
     chatHistoryRef.current = chatHistory;
   }, [chatHistory]);
-  
+
   // Pipeline Stage Tracking
   const [stageVAD, setStageVAD] = useState<StageState>({ status: "idle" });
   const [stageSTT, setStageSTT] = useState<StageState>({ status: "idle" });
@@ -54,26 +53,42 @@ export default function OptimizedAgent() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
 
-  // Audio, KeepAlive & WebSocket Refs
+  // Deepgram WebSockets (STT + Flux TTS) & Audio Refs
+  const sttWs = useRef<WebSocket | null>(null);
+  const ttsWs = useRef<WebSocket | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
-  const ws = useRef<WebSocket | null>(null);
   const keepAliveInterval = useRef<NodeJS.Timeout | null>(null);
   const isListeningActive = useRef(false);
   const t_user_silence_start = useRef<number>(0);
-  const audioQueue = useRef<HTMLAudioElement[]>([]);
-  const isPlaying = useRef(false);
   const currentTurnProcessed = useRef(false);
   const continuousModeRef = useRef(true);
+  const abortController = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    continuousModeRef.current = continuousMode;
-  }, [continuousMode]);
+  // Web Audio API for Seamless 24kHz Linear16 PCM Streaming Playback
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const nextPlayTime = useRef<number>(0);
+  const activeSources = useRef<AudioBufferSourceNode[]>([]);
+  const isTurnFlushed = useRef<boolean>(false);
+  const t_tts_start = useRef<number>(0);
+  const t_first_audio_played = useRef<number>(0);
+  const currentTurnMetrics = useRef<Partial<TurnMetrics>>({});
 
   const addLog = (stage: string, message: string, type: LogEntry["type"] = "info") => {
     const now = new Date();
     const time = `${now.toTimeString().split(" ")[0]}.${now.getMilliseconds().toString().padStart(3, "0")}`;
     setLogs((prev) => [...prev.slice(-100), { id: Math.random().toString(), time, stage, message, type }]);
+  };
+
+  const getAudioContext = (): AudioContext => {
+    if (!audioCtxRef.current) {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      audioCtxRef.current = new AudioCtx({ sampleRate: 24000 });
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
   };
 
   const resetStages = () => {
@@ -87,8 +102,8 @@ export default function OptimizedAgent() {
   const startKeepAlive = () => {
     stopKeepAlive();
     keepAliveInterval.current = setInterval(() => {
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify({ type: "KeepAlive" }));
+      if (sttWs.current && sttWs.current.readyState === WebSocket.OPEN) {
+        sttWs.current.send(JSON.stringify({ type: "KeepAlive" }));
       }
     }, 3000);
   };
@@ -100,17 +115,65 @@ export default function OptimizedAgent() {
     }
   };
 
+  const interruptPlayback = () => {
+    if (ttsWs.current && ttsWs.current.readyState === WebSocket.OPEN) {
+      ttsWs.current.send(JSON.stringify({ type: "Interrupt" }));
+    }
+    activeSources.current.forEach((src) => {
+      try {
+        src.stop();
+      } catch {}
+    });
+    activeSources.current = [];
+    nextPlayTime.current = 0;
+    if (abortController.current) {
+      abortController.current.abort();
+      abortController.current = null;
+    }
+  };
+
+  const playbackCheckTimer = useRef<NodeJS.Timeout | null>(null);
+  const isSpeechMetadataReceived = useRef<boolean>(false);
+
+  const checkPlaybackEnded = () => {
+    if (playbackCheckTimer.current) {
+      clearTimeout(playbackCheckTimer.current);
+    }
+
+    playbackCheckTimer.current = setTimeout(() => {
+      const ctx = audioCtxRef.current;
+      const isTimeFinished = !ctx || ctx.currentTime >= (nextPlayTime.current - 0.05);
+
+      if (
+        isTurnFlushed.current &&
+        isSpeechMetadataReceived.current &&
+        activeSources.current.length === 0 &&
+        isTimeFinished
+      ) {
+        addLog("PLAYBACK", "Agent finished speaking", "info");
+        setStagePlayback((prev) => ({ ...prev, status: "completed" }));
+
+        if (continuousModeRef.current && sttWs.current && sttWs.current.readyState === WebSocket.OPEN) {
+          resumeListening();
+        } else {
+          setStatus("idle");
+          setVadStateText("Idle (Ready)");
+        }
+      }
+    }, 100);
+  };
+
   const startInteraction = async () => {
     try {
       setStatus("listening");
       setTranscript("");
       setAgentResponse("");
-      setVadStateText("Connecting to Deepgram...");
+      setVadStateText("Connecting to Deepgram STT & Flux TTS...");
       currentTurnProcessed.current = false;
       resetStages();
       addLog("DEEPGRAM", "Requesting token...", "info");
-      
-      // 1. Fetch token
+
+      // 1. Fetch Deepgram Token
       const res = await fetch("/api/deepgram-token");
       const data = await res.json();
       if (!data.key) {
@@ -118,11 +181,131 @@ export default function OptimizedAgent() {
       }
       const key = data.key;
 
-      // 2. Open Persistent WebSocket
-      const wsUrl = `wss://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&endpointing=350&interim_results=true&utterance_end_ms=1000`;
-      ws.current = new WebSocket(wsUrl, ["token", key]);
-      
-      ws.current.onopen = async () => {
+      // 2. Initialize Web Audio Context
+      getAudioContext();
+
+      // 3. Connect to Deepgram Flux TTS WebSocket (/v2/speak)
+      const ttsUrl = `wss://api.deepgram.com/v2/speak?model=flux-haley-en&encoding=linear16&sample_rate=24000`;
+      const fluxSocket = new WebSocket(ttsUrl, ["token", key]);
+      fluxSocket.binaryType = "arraybuffer";
+      ttsWs.current = fluxSocket;
+
+      fluxSocket.onopen = () => {
+        addLog("TTS", "⚡ Connected to Deepgram Flux TTS WebSocket (/v2/speak, flux-haley-en)", "success");
+      };
+
+      fluxSocket.onmessage = (event) => {
+        // Binary Audio Chunk from Flux TTS
+        if (event.data instanceof ArrayBuffer) {
+          const rawBuffer = event.data;
+          if (rawBuffer.byteLength === 0) return;
+
+          // Track Time-to-First-Audio (TTFA)
+          if (!currentTurnMetrics.current.ttsTTFA && t_tts_start.current > 0) {
+            const ttfa = performance.now() - t_tts_start.current;
+            currentTurnMetrics.current.ttsTTFA = ttfa;
+            setStageTTS((prev) => ({ ...prev, ttfa, status: "running", detail: "Streaming audio frames" }));
+            addLog("TTS", `⚡ First Flux audio frame received (TTFA: ${ttfa.toFixed(0)}ms)`, "success");
+          }
+
+          const ctx = getAudioContext();
+          const pcm16 = new Int16Array(rawBuffer);
+          const float32 = new Float32Array(pcm16.length);
+          for (let i = 0; i < pcm16.length; i++) {
+            float32[i] = pcm16[i] / 32768.0;
+          }
+
+          const audioBuffer = ctx.createBuffer(1, float32.length, 24000);
+          audioBuffer.copyToChannel(float32, 0);
+
+          const now = ctx.currentTime;
+          if (nextPlayTime.current < now) {
+            nextPlayTime.current = now;
+          }
+
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(ctx.destination);
+          source.start(nextPlayTime.current);
+
+          setStatus("playing");
+          setVadStateText("Agent speaking (Deepgram Flux audio streaming)...");
+          setStagePlayback((prev) => ({ ...prev, status: "running" }));
+
+          // Measure Turn-to-First-Playback Latency
+          if (t_first_audio_played.current === 0) {
+            t_first_audio_played.current = performance.now();
+            const total = t_first_audio_played.current - t_user_silence_start.current;
+            currentTurnMetrics.current.totalLatency = total;
+            setStagePlayback({ status: "completed", latency: total });
+            addLog("PLAYBACK", `⚡ Total turn-to-audio latency: ${total.toFixed(0)}ms`, "success");
+
+            setMetrics((prev) => [
+              ...prev,
+              {
+                turn: prev.length + 1,
+                vadLatency: currentTurnMetrics.current.vadLatency ?? 0,
+                sttLatency: currentTurnMetrics.current.sttLatency ?? 0,
+                llmTTFT: currentTurnMetrics.current.llmTTFT ?? 0,
+                llmTotal: currentTurnMetrics.current.llmTotal ?? 0,
+                ttsTTFA: currentTurnMetrics.current.ttsTTFA ?? 0,
+                llmTtft: currentTurnMetrics.current.llmTTFT ?? 0,
+                llmLatency: currentTurnMetrics.current.llmTotal ?? 0,
+                ttsLatency: currentTurnMetrics.current.ttsTTFA ?? 0,
+                totalLatency: total,
+                transcript: currentTurnMetrics.current.transcript || "User speech",
+                response: currentTurnMetrics.current.response || agentResponse || "Agent response"
+              }
+            ]);
+          }
+
+          nextPlayTime.current += audioBuffer.duration;
+          activeSources.current.push(source);
+
+          source.onended = () => {
+            activeSources.current = activeSources.current.filter((s) => s !== source);
+            checkPlaybackEnded();
+          };
+        } else if (typeof event.data === "string") {
+          // JSON Control Messages from Flux TTS
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "SpeechStarted") {
+              addLog("TTS", `Flux SpeechStarted (speech_id: ${msg.speech_id})`, "info");
+            } else if (msg.type === "Flushed") {
+              isTurnFlushed.current = true;
+              addLog("TTS", `Flux Flushed (speech_id: ${msg.speech_id})`, "info");
+              checkPlaybackEnded();
+            } else if (msg.type === "SpeechMetadata") {
+              isSpeechMetadataReceived.current = true;
+              setStageTTS((prev) => ({
+                ...prev,
+                status: "completed",
+                detail: `Duration: ${msg.duration ? `${msg.duration.toFixed(2)}s` : "completed"}`
+              }));
+              addLog("TTS", `Flux SpeechMetadata: duration ${msg.duration?.toFixed(2)}s, chars: ${msg.characters_spoken || msg.text_spoken?.length || ""}`, "info");
+              checkPlaybackEnded();
+            } else if (msg.type === "Warning" || msg.type === "Error") {
+              console.warn("Flux TTS warning/error:", msg);
+              addLog("TTS", `Flux message: ${msg.message || msg.type}`, msg.type === "Error" ? "error" : "warn");
+            }
+          } catch (e) {
+            console.error("Flux WS JSON parse error:", e);
+          }
+        }
+      };
+
+      fluxSocket.onerror = (err) => {
+        console.error("Flux TTS WebSocket error:", err);
+        addLog("TTS", "Flux TTS WebSocket connection error", "error");
+      };
+
+      // 4. Connect to Deepgram STT WebSocket (/v1/listen)
+      const sttUrl = `wss://api.deepgram.com/v1/listen?model=nova-3&smart_format=true&endpointing=350&interim_results=true&utterance_end_ms=1000`;
+      const listenSocket = new WebSocket(sttUrl, ["token", key]);
+      sttWs.current = listenSocket;
+
+      listenSocket.onopen = async () => {
         setVadStateText("Listening... (Speak anytime)");
         addLog("MIC", "Accessing microphone stream...", "info");
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -133,7 +316,7 @@ export default function OptimizedAgent() {
           }
         });
         mediaStream.current = stream;
-        
+
         let mimeType = "audio/webm";
         if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
           mimeType = "audio/webm;codecs=opus";
@@ -141,34 +324,19 @@ export default function OptimizedAgent() {
 
         mediaRecorder.current = new MediaRecorder(stream, { mimeType });
         mediaRecorder.current.ondataavailable = (e) => {
-          if (isListeningActive.current && e.data && e.data.size > 0 && ws.current?.readyState === WebSocket.OPEN) {
-            ws.current.send(e.data);
+          if (isListeningActive.current && e.data && e.data.size > 0 && sttWs.current?.readyState === WebSocket.OPEN) {
+            sttWs.current.send(e.data);
           }
         };
 
         isListeningActive.current = true;
         mediaRecorder.current.start(150);
-        addLog("STT", "Live audio streaming to Deepgram active (150ms chunks)", "success");
+        addLog("STT", "Live audio streaming to Deepgram Nova-3 active (150ms chunks)", "success");
       };
 
-      ws.current.onmessage = async (event) => {
+      listenSocket.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data);
-          
-          // Flux Turn Taking
-          if (msg.type === "TurnInfo" && msg.eventType === "EndOfTurn") {
-            const finalTranscript = msg.transcript?.trim();
-            if (finalTranscript && !currentTurnProcessed.current && isListeningActive.current) {
-              currentTurnProcessed.current = true;
-              isListeningActive.current = false;
-              startKeepAlive();
-              t_user_silence_start.current = performance.now() - 150;
-              const vadLatency = Math.max(0, performance.now() - t_user_silence_start.current);
-              addLog("VAD", `Flux EndOfTurn detected (VAD: ${vadLatency.toFixed(0)}ms)`, "success");
-              processTurn(finalTranscript, vadLatency);
-            }
-            return;
-          }
 
           // Deepgram Live Transcript & Endpointing
           const alt = msg.channel?.alternatives?.[0];
@@ -177,6 +345,12 @@ export default function OptimizedAgent() {
           if (text && isListeningActive.current) {
             setTranscript(text);
             setStageSTT((prev) => ({ ...prev, detail: text }));
+          }
+
+          // Barge-in detection: if user speaks while audio is playing
+          if (text && activeSources.current.length > 0) {
+            interruptPlayback();
+            addLog("BARGE-IN", `User interrupted: "${text}"`, "warn");
           }
 
           if (isListeningActive.current && (msg.speech_final || (msg.is_final && text && msg.speech_final !== false))) {
@@ -201,16 +375,16 @@ export default function OptimizedAgent() {
             }
           }
         } catch (parseErr) {
-          console.warn("Deepgram WS message parse error:", parseErr);
+          console.warn("Deepgram STT message parse error:", parseErr);
         }
       };
 
-      ws.current.onerror = (err) => {
-        console.error("Deepgram WebSocket Error:", err);
-        addLog("DEEPGRAM", "WebSocket connection error", "error");
+      listenSocket.onerror = (err) => {
+        console.error("Deepgram STT WebSocket Error:", err);
+        addLog("DEEPGRAM", "STT WebSocket connection error", "error");
       };
 
-      ws.current.onclose = () => {
+      listenSocket.onclose = () => {
         stopKeepAlive();
       };
 
@@ -226,64 +400,50 @@ export default function OptimizedAgent() {
     stopKeepAlive();
     currentTurnProcessed.current = false;
     isListeningActive.current = true;
-    resetStages();
+    isTurnFlushed.current = false;
+    isSpeechMetadataReceived.current = false;
+    t_first_audio_played.current = 0;
     setStatus("listening");
     setVadStateText("Listening... (Speak anytime)");
-    setTranscript("");
-    setAgentResponse("");
     addLog("MIC", "Mic active, ready for next turn (KeepAlive stopped)", "info");
-  };
-
-  const playNextAudio = () => {
-    if (audioQueue.current.length === 0) {
-      isPlaying.current = false;
-      addLog("PLAYBACK", "Agent finished speaking", "info");
-
-      if (continuousModeRef.current && ws.current && ws.current.readyState === WebSocket.OPEN) {
-        resumeListening();
-      } else {
-        setStatus("idle");
-        setVadStateText("Idle");
-      }
-      return;
-    }
-
-    isPlaying.current = true;
-    setStatus("playing");
-    setVadStateText("Agent speaking (Audio streaming)...");
-    const audio = audioQueue.current.shift()!;
-    audio.onended = playNextAudio;
-    audio.onerror = playNextAudio;
-    audio.play().catch(() => playNextAudio());
   };
 
   const processTurn = async (userText: string, vadLatency: number) => {
     setStatus("processing");
-    setVadStateText("Streaming Groq LLM & synthesizing chunks...");
+    setVadStateText("Streaming Groq LLM tokens directly to Deepgram Flux TTS...");
     setStageVAD({ status: "completed", latency: vadLatency });
     setStageSTT({ status: "completed", latency: 0, detail: userText });
     setStageLLM({ status: "running" });
     setStageTTS({ status: "pending" });
     setStagePlayback({ status: "pending" });
+    setTranscript(userText);
+    setAgentResponse("");
 
     addLog("LLM", `Sent prompt to Groq (openai/gpt-oss-20b)${chatHistoryRef.current.length > 0 ? ` with ${Math.round(chatHistoryRef.current.length / 2)} turn(s) history` : ""}: "${userText}"`, "info");
 
-    const turnData: Partial<TurnMetrics> = { 
-      vadLatency, 
+    currentTurnMetrics.current = {
+      vadLatency,
       sttLatency: 0,
-      transcript: userText 
+      transcript: userText
     };
-    let t_audio_play = 0;
-    let chunkCount = 0;
+
+    t_tts_start.current = performance.now();
+    t_first_audio_played.current = 0;
+    isTurnFlushed.current = false;
+
+    // Interrupt any previous playback and prepare fresh controller
+    interruptPlayback();
+    abortController.current = new AbortController();
 
     try {
       const res = await fetch("/api/chat-optimized", {
         method: "POST",
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           transcript: userText,
           history: chatHistoryRef.current
         }),
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
+        signal: abortController.current.signal
       });
 
       if (!res.ok || !res.body) {
@@ -298,7 +458,7 @@ export default function OptimizedAgent() {
       while (reader) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const chunks = buffer.split("\n");
         buffer = chunks.pop() || "";
@@ -309,21 +469,25 @@ export default function OptimizedAgent() {
             const data = JSON.parse(chunk);
 
             if (data.type === "ttft") {
-              turnData.llmTTFT = data.time;
+              currentTurnMetrics.current.llmTTFT = data.time;
               setStageLLM((prev) => ({ ...prev, ttft: data.time, status: "running" }));
               addLog("LLM", `⚡ First token received from Groq (TTFT: ${data.time.toFixed(0)}ms)`, "success");
             }
 
-            if (data.type === "ttfa") {
-              turnData.ttsTTFA = data.time;
-              setStageTTS((prev) => ({ ...prev, ttfa: data.time, status: "running" }));
-              addLog("TTS", `⚡ First chunk TTS synthesized (TTFA: ${data.time.toFixed(0)}ms)`, "success");
+            if (data.type === "token" && data.text) {
+              fullResponse += data.text;
+              setAgentResponse(fullResponse);
+
+              // Stream LLM token immediately to Deepgram Flux TTS WebSocket!
+              if (ttsWs.current && ttsWs.current.readyState === WebSocket.OPEN) {
+                ttsWs.current.send(JSON.stringify({ type: "Speak", text: data.text }));
+              }
             }
 
             if (data.type === "llm_done") {
               const completedText = data.fullResponse || fullResponse;
-              turnData.llmTotal = data.time;
-              turnData.response = completedText;
+              currentTurnMetrics.current.llmTotal = data.time;
+              currentTurnMetrics.current.response = completedText;
               setStageLLM((prev) => ({
                 ...prev,
                 status: "completed",
@@ -340,53 +504,11 @@ export default function OptimizedAgent() {
                 ]);
               }
 
-              addLog("LLM", `Groq LLM stream finished in ${data.time.toFixed(0)}ms`, "success");
-            }
-            
-            if (data.type === "audio_chunk" && data.base64) {
-              chunkCount += 1;
-              fullResponse += (data.text ? data.text + " " : "");
-              setAgentResponse(fullResponse);
-              setStageTTS((prev) => ({ ...prev, status: "completed", detail: `${chunkCount} chunk(s)` }));
-              addLog("TTS", `Audio chunk #${chunkCount} received: "${data.text?.slice(0, 30)}..."`, "info");
-              
-              const audio = new Audio(`data:audio/wav;base64,${data.base64}`);
-              
-              // Measure when the first audio sentence chunk begins hardware playback
-              if (t_audio_play === 0) {
-                audio.onplay = () => {
-                  if (t_audio_play === 0) {
-                    t_audio_play = performance.now();
-                    const total = t_audio_play - t_user_silence_start.current;
-                    turnData.totalLatency = total;
-                    setStagePlayback({ status: "completed", latency: total });
-                    addLog("PLAYBACK", `⚡ Total turn-to-audio latency: ${total.toFixed(0)}ms`, "success");
-                    
-                    setMetrics((prev) => [
-                      ...prev,
-                      {
-                        turn: prev.length + 1,
-                        vadLatency: turnData.vadLatency ?? 0,
-                        sttLatency: turnData.sttLatency ?? 0,
-                        llmTTFT: turnData.llmTTFT ?? 0,
-                        llmTotal: turnData.llmTotal ?? 0,
-                        ttsTTFA: turnData.ttsTTFA ?? 0,
-                        llmTtft: turnData.llmTTFT ?? 0,
-                        llmLatency: turnData.llmTotal ?? 0,
-                        ttsLatency: turnData.ttsTTFA ?? 0,
-                        totalLatency: total,
-                        transcript: userText,
-                        response: turnData.response || fullResponse || "Agent response"
-                      }
-                    ]);
-                  }
-                };
-              }
-              
-              audioQueue.current.push(audio);
-              if (!isPlaying.current) {
-                setStagePlayback({ status: "running" });
-                playNextAudio();
+              addLog("LLM", `Groq LLM stream finished in ${data.time.toFixed(0)}ms. Sending Flush to Flux TTS...`, "success");
+
+              // Flush ends the turn in Deepgram Flux TTS
+              if (ttsWs.current && ttsWs.current.readyState === WebSocket.OPEN) {
+                ttsWs.current.send(JSON.stringify({ type: "Flush" }));
               }
             }
           } catch (e) {
@@ -395,6 +517,10 @@ export default function OptimizedAgent() {
         }
       }
     } catch (err: any) {
+      if (err.name === "AbortError") {
+        addLog("LLM", "LLM stream aborted due to interruption", "warn");
+        return;
+      }
       console.error("processTurn error:", err);
       setAgentResponse(`Error: ${err.message || "Failed to process turn"}`);
       addLog("ERROR", err.message || "Processing failed", "error");
@@ -414,17 +540,25 @@ export default function OptimizedAgent() {
   const stopAll = () => {
     isListeningActive.current = false;
     stopKeepAlive();
+    interruptPlayback();
+
     if (mediaRecorder.current && mediaRecorder.current.state === "recording") {
       mediaRecorder.current.stop();
     }
     if (mediaStream.current) {
       mediaStream.current.getTracks().forEach((t) => t.stop());
     }
-    if (ws.current && (ws.current.readyState === WebSocket.OPEN || ws.current.readyState === WebSocket.CONNECTING)) {
-      ws.current.close();
+    if (sttWs.current && (sttWs.current.readyState === WebSocket.OPEN || sttWs.current.readyState === WebSocket.CONNECTING)) {
+      sttWs.current.close();
     }
-    audioQueue.current = [];
-    isPlaying.current = false;
+    if (ttsWs.current && (ttsWs.current.readyState === WebSocket.OPEN || ttsWs.current.readyState === WebSocket.CONNECTING)) {
+      ttsWs.current.close();
+    }
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
+
     setStatus("idle");
     setVadStateText("Idle");
     addLog("APP", "Conversation stopped by user", "info");
@@ -439,10 +573,13 @@ export default function OptimizedAgent() {
   // Metrics Calcs
   const totalLatencies = metrics.map((m) => m.totalLatency);
   const ttftLatencies = metrics.map((m) => m.llmTTFT ?? m.llmTtft ?? 0);
+  const ttfaLatencies = metrics.map((m) => m.ttsTTFA ?? m.ttsLatency ?? 0);
   const p50Total = calculatePercentile(totalLatencies, 50);
   const p95Total = calculatePercentile(totalLatencies, 95);
   const p50TTFT = calculatePercentile(ttftLatencies, 50);
   const p95TTFT = calculatePercentile(ttftLatencies, 95);
+  const p50TTFA = calculatePercentile(ttfaLatencies, 50);
+  const p95TTFA = calculatePercentile(ttfaLatencies, 95);
 
   const getStageBadge = (stage: StageState, defaultLabel: string) => {
     switch (stage.status) {
@@ -469,7 +606,7 @@ export default function OptimizedAgent() {
   return (
     <div className="min-h-screen bg-slate-50 p-8 text-slate-900 font-sans">
       <div className="max-w-5xl mx-auto space-y-6">
-        
+
         {/* Header & Controls */}
         <div className="flex items-center justify-between">
           <div>
@@ -479,7 +616,9 @@ export default function OptimizedAgent() {
               </Link>
               <h1 className="text-3xl font-bold tracking-tight">Optimized Voice Agent</h1>
             </div>
-            <p className="text-slate-500">Deepgram Streaming STT (KeepAlive) → Groq LLM (openai/gpt-oss-20b) → Chunked Gemini TTS</p>
+            <p className="text-slate-500">
+              Deepgram Nova-3 STT (WebSocket) → Groq LLM (openai/gpt-oss-20b) → Deepgram Flux TTS (flux-haley-en /v2/speak)
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {chatHistory.length > 0 && (
@@ -492,15 +631,6 @@ export default function OptimizedAgent() {
                 Clear History ({Math.round(chatHistory.length / 2)} turns)
               </Button>
             )}
-            <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer bg-white px-3 py-1.5 rounded-md border">
-              <input
-                type="checkbox"
-                checked={continuousMode}
-                onChange={(e) => setContinuousMode(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500"
-              />
-              Continuous Conversation
-            </label>
             <Badge
               variant={status === "idle" ? "secondary" : "default"}
               className={`px-4 py-1.5 text-sm uppercase tracking-widest ${
@@ -520,7 +650,7 @@ export default function OptimizedAgent() {
             <div className="flex justify-between items-center">
               <div>
                 <CardTitle className="text-base font-semibold text-slate-900">Live Streaming Pipeline Stage Tracker</CardTitle>
-                <CardDescription>Visual execution breakdown of the overlapping streaming voice pipeline</CardDescription>
+                <CardDescription>Direct streaming WebSocket voice pipeline with Deepgram Flux TTS (/v2/speak)</CardDescription>
               </div>
               <div className="text-xs text-slate-500 font-mono bg-slate-100 px-2.5 py-1 rounded">
                 Status: <span className="font-semibold text-slate-700">{vadStateText}</span>
@@ -529,7 +659,7 @@ export default function OptimizedAgent() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              
+
               {/* Stage 1: VAD */}
               <div className={`p-3 rounded-lg border transition-all ${stageVAD.status === 'running' ? 'border-amber-400 bg-amber-50/50' : stageVAD.status === 'completed' ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
                 <div className="flex justify-between items-center mb-1">
@@ -548,7 +678,7 @@ export default function OptimizedAgent() {
                   <span className="text-xs font-semibold text-slate-700">2. 📝 STT</span>
                   {getStageBadge(stageSTT, "STT")}
                 </div>
-                <p className="text-[10px] font-mono text-blue-600 font-medium truncate">Deepgram WebSocket</p>
+                <p className="text-[10px] font-mono text-blue-600 font-medium truncate">Deepgram Nova-3 WS</p>
                 <p className="text-xs font-mono font-medium text-emerald-700 mt-1">Real-time (0ms)</p>
               </div>
 
@@ -581,8 +711,8 @@ export default function OptimizedAgent() {
                   <span className="text-xs font-semibold text-slate-700">4. 🔊 TTS</span>
                   {getStageBadge(stageTTS, "TTS")}
                 </div>
-                <p className="text-[10px] font-mono text-amber-600 font-medium truncate" title="Chunked Gemini TTS">
-                  Chunked Gemini TTS
+                <p className="text-[10px] font-mono text-amber-600 font-medium truncate" title="Deepgram Flux TTS (/v2/speak)">
+                  Flux (flux-haley-en)
                 </p>
                 <div className="flex flex-col gap-0.5 mt-1">
                   {stageTTS.ttfa !== undefined && (
@@ -591,7 +721,7 @@ export default function OptimizedAgent() {
                     </span>
                   )}
                   {stageTTS.detail && (
-                    <span className="text-[10px] font-mono text-slate-500">{stageTTS.detail}</span>
+                    <span className="text-[10px] font-mono text-slate-500 truncate">{stageTTS.detail}</span>
                   )}
                 </div>
               </div>
@@ -602,7 +732,7 @@ export default function OptimizedAgent() {
                   <span className="text-xs font-semibold text-slate-700">5. 🎧 Output</span>
                   {getStageBadge(stagePlayback, "Audio")}
                 </div>
-                <p className="text-[10px] font-mono text-slate-500">Audio Stream</p>
+                <p className="text-[10px] font-mono text-slate-500">24kHz PCM Web Audio</p>
                 {stagePlayback.latency !== undefined && (
                   <p className="text-xs font-mono font-bold text-emerald-800 mt-1">Total: {stagePlayback.latency.toFixed(0)}ms</p>
                 )}
@@ -617,7 +747,7 @@ export default function OptimizedAgent() {
                 <p className="text-slate-800 font-medium whitespace-pre-wrap">{transcript || "Waiting for user speech..."}</p>
               </div>
               <div className="p-3 bg-slate-50 rounded-md border text-xs">
-                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] block mb-1">Agent Response (Groq LLM)</span>
+                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[10px] block mb-1">Agent Response (Groq LLM → Flux TTS)</span>
                 <p className="text-slate-800 font-medium whitespace-pre-wrap">{agentResponse || "Waiting for response generation..."}</p>
               </div>
             </div>
@@ -647,7 +777,7 @@ export default function OptimizedAgent() {
 
               {status === "processing" && (
                 <Button disabled size="lg" className="w-52 bg-slate-400 text-white">
-                  Streaming LLM...
+                  Streaming LLM & TTS...
                 </Button>
               )}
 
@@ -670,15 +800,16 @@ export default function OptimizedAgent() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Latency Measurements</CardTitle>
-              <CardDescription>Overlapped streaming benchmarks (Deepgram STT + Groq TTFT + Gemini TTFA)</CardDescription>
+              <CardDescription>Overlapped streaming benchmarks (Deepgram Nova-3 STT + Groq TTFT + Deepgram Flux TTFA)</CardDescription>
             </div>
             <div className="flex gap-4 items-center">
               <div className="text-xs bg-slate-100 p-2 rounded border space-y-0.5">
                 <div>
                   <span className="font-semibold text-slate-700">Total Latency:</span> p50: <span className="font-bold">{p50Total.toFixed(0)}ms</span> | p95: <span className="font-bold">{p95Total.toFixed(0)}ms</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-purple-700">Groq TTFT:</span> p50: <span className="font-bold text-purple-800">{p50TTFT.toFixed(0)}ms</span> | p95: <span className="font-bold text-purple-800">{p95TTFT.toFixed(0)}ms</span>
+                <div className="flex gap-3">
+                  <span><span className="font-semibold text-purple-700">Groq TTFT:</span> p50: <span className="font-bold text-purple-800">{p50TTFT.toFixed(0)}ms</span></span>
+                  <span><span className="font-semibold text-amber-700">Flux TTFA:</span> p50: <span className="font-bold text-amber-800">{p50TTFA.toFixed(0)}ms</span></span>
                 </div>
               </div>
               <Button variant="outline" onClick={() => downloadCSV(metrics, "optimized_metrics.csv")} disabled={metrics.length === 0}>
@@ -695,7 +826,7 @@ export default function OptimizedAgent() {
                   <TableHead>STT (ms)</TableHead>
                   <TableHead className="text-purple-700 font-semibold">Groq TTFT (ms)</TableHead>
                   <TableHead>LLM Total (ms)</TableHead>
-                  <TableHead className="text-amber-700 font-semibold">TTS TTFA (ms)</TableHead>
+                  <TableHead className="text-amber-700 font-semibold">Flux TTFA (ms)</TableHead>
                   <TableHead className="text-right font-bold">Total (ms)</TableHead>
                 </TableRow>
               </TableHeader>
@@ -703,7 +834,7 @@ export default function OptimizedAgent() {
                 {metrics.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-slate-500 py-6">
-                      No data yet. Click &apos;Start Speaking&apos; to test the optimized pipeline!
+                      No data yet. Click &apos;Start Speaking&apos; to test the optimized pipeline with Deepgram Flux TTS!
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -754,6 +885,7 @@ export default function OptimizedAgent() {
                         l.stage === "LLM" ? "bg-purple-950 text-purple-300" :
                         l.stage === "TTS" ? "bg-amber-950 text-amber-300" :
                         l.stage === "VAD" ? "bg-emerald-950 text-emerald-300" :
+                        l.stage === "BARGE-IN" ? "bg-amber-900 text-amber-200" :
                         "bg-slate-800 text-slate-300"
                       }`}
                     >
