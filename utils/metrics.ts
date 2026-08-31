@@ -2,12 +2,16 @@ export interface TurnMetrics {
   turn: number;
   vadLatency: number;
   sttLatency: number;
-  llmTtft: number;
-  llmLatency: number;
-  ttsLatency: number;
+  llmTTFT: number;
+  llmTotal: number;
+  ttsTTFA: number;
   totalLatency: number;
   transcript: string;
   response: string;
+  // Backward compatibility alias support
+  llmTtft?: number;
+  llmLatency?: number;
+  ttsLatency?: number;
 }
 
 export function calculatePercentile(data: number[], percentile: number): number {
@@ -21,26 +25,26 @@ export function calculatePercentile(data: number[], percentile: number): number 
   return sorted[lower] * (1 - weight) + sorted[upper] * weight;
 }
 
-export function downloadCSV(metrics: TurnMetrics[]) {
+export function downloadCSV(metrics: TurnMetrics[], filename: string = "metrics.csv") {
   const headers = [
     "Turn",
-    "VAD Latency (ms)",
-    "STT Latency (ms)",
+    "VAD (ms)",
+    "STT (ms)",
     "LLM TTFT (ms)",
-    "LLM Latency (ms)",
-    "TTS Latency (ms)",
+    "LLM Total (ms)",
+    "TTS TTFA (ms)",
     "Total Latency (ms)",
     "Transcript",
     "Response"
   ];
   const rows = metrics.map(m => [
     m.turn,
-    m.vadLatency.toFixed(2),
-    m.sttLatency.toFixed(2),
-    m.llmTtft.toFixed(2),
-    m.llmLatency.toFixed(2),
-    m.ttsLatency.toFixed(2),
-    m.totalLatency.toFixed(2),
+    (m.vadLatency ?? 0).toFixed(0),
+    (m.sttLatency ?? 0).toFixed(0),
+    (m.llmTTFT ?? m.llmTtft ?? 0).toFixed(0),
+    (m.llmTotal ?? m.llmLatency ?? 0).toFixed(0),
+    (m.ttsTTFA ?? m.ttsLatency ?? 0).toFixed(0),
+    (m.totalLatency ?? 0).toFixed(0),
     `"${(m.transcript || "").replace(/"/g, '""')}"`,
     `"${(m.response || "").replace(/"/g, '""')}"`
   ]);
@@ -49,7 +53,7 @@ export function downloadCSV(metrics: TurnMetrics[]) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", "baseline_metrics.csv");
+  link.setAttribute("download", filename);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
